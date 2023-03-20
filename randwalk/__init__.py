@@ -64,7 +64,7 @@ class SRW:
     def weight(self, u, v):
         """Transistion weight form vertex U to vertex V."""
         # Every neighbor is chosen with the same probability.
-        return 1.
+        return 1
 
     def pick_next(self, u=None):
         """Randomly choose one of neighbors of vetex U with the probabiity
@@ -118,7 +118,7 @@ class NBRW(SRW):
         if v == self.prev_vertex():
             return EPS
         else:
-            return 1.
+            return super().weight(u, v)
 
 class SARW(SRW):
     """Implementation of the self-avoiding random walk (SARW) agent."""
@@ -130,9 +130,9 @@ class SARW(SRW):
         if self.nvisits[v]:
             return EPS
         else:
-            return 1.
+            return super().weight(u, v)
 
-class VARW(SRW):
+class VARW(NBRW):
     """Implementation of the random walk with vicinity avoidance (VARW)
     agent."""
     def weight(self, u, v):
@@ -148,7 +148,7 @@ class VARW(SRW):
         if t and self.graph.has_edge(t, v):
             return EPS
         else:
-            return 1.
+            return super().weight(u, v)
 
 class BiasedRW(SRW):
     """Implementation of the biased random walk (Biased-RW) agent."""
@@ -162,8 +162,9 @@ class BiasedRW(SRW):
         vertex V and alpha is a control parameter."""
         if u is None:
             u = self.current
+        w = super().weight(u, v)
         dv = self.graph.degree(v)
-        return dv**self.alpha
+        return w * dv**self.alpha
 
 class LZRW(SRW):
     """Implementation of the lazy random walk (LZRW) agent."""
@@ -193,7 +194,7 @@ class BloomRW(SRW):
         if self.bf.query(v):
             return EPS
         else:
-            return 1.
+            return super().weight(u, v)
 
     def move_to(self, v):
         super().move_to(v)
@@ -203,17 +204,20 @@ class MixedRW(BloomRW):
     def weight(self, u, v):
         if u is None:
             u = self.current
-        if self.bf.query(v):
-            return EPS
         # This code assumes that vertex U is the current vetex.
         assert u == self.current
+        # NBRW-like behavior.
         if v == self.prev_vertex():
             return EPS
+        # VARW-like behavior.
         # NOTE: the original VA-RW avoids neighbors of the last K vertices, rather 
         # than those of the previous one.
         t = self.prev_vertex()
         if t and self.graph.has_edge(t, v):
             return EPS
+        # BloomRW-like behavior.
+        if self.bf.query(v):
+            return EPS
+        # BiasedRW-like behavior.
         dv = self.graph.degree(v)
-        alpha = -.5
-        return dv**alpha
+        return dv**-.5
