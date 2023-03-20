@@ -46,8 +46,9 @@ class BloomFilter:
 # ----------------------------------------------------------------
 class SRW:
     """Implementation of the simple random walk (SRW) agent."""
-    def __init__(self, graph=None, current=None):
+    def __init__(self, graph=None, current=None, *kargs, **kwargs):
         self.graph = graph
+        self.n_nodes = len(self.graph.vertices())
         self.path = []  # List of visited vertiecs.
         self.step = 0  # Global clock.
         self.nvisits = collections.defaultdict(
@@ -106,6 +107,12 @@ class SRW:
             return self.path[-(n + 1)]
         except IndexError:
             return None
+
+    def dump(self):
+        v = self.current
+        d = self.graph.degree(v)
+        print(f'{self.step}\tvisit\t{v}\t{self.nvisits[v]}\t{d}')
+        print(f'{self.step}\tstatus\t{self.ncovered}\t{self.n_nodes}')
 
 # ----------------------------------------------------------------
 class NBRW(SRW):
