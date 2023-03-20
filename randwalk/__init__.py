@@ -132,6 +132,32 @@ class SARW(SRW):
         else:
             return super().weight(u, v)
 
+class FIFORW(SRW):
+    def __init__(self, size=3, *kargs, **kwargs):
+        self.size = size
+        self.history = collections.deque(maxlen=size)
+        super().__init__(*kargs, **kwargs)
+    
+    def weight(self, u, v):
+        if v in self.history:
+            return EPS
+        else:
+            return super().weight(u, v)
+
+    def move_to(self, v):
+        super().move_to(v)
+        if v not in self.history:
+            # The oldest entry is flushed automatically.
+            self.history.append(v)
+
+class LRVRW(FIFORW):
+    def move_to(self, v):
+        super().move_to(v)
+        # Always place the recent entry at the top.
+        if v in self.history:
+            self.history.remove(v)
+        self.history.append(v)
+
 class VARW(NBRW):
     """Implementation of the random walk with vicinity avoidance (VARW)
     agent."""
