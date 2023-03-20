@@ -12,6 +12,8 @@ import random
 
 import graph_tools
 
+EPS = 1e-4
+
 # ----------------------------------------------------------------
 # NOTE: The follwing code is essentially based on
 # https://stackoverflow.com/questions/9026519/bloomfilter-python .
@@ -114,17 +116,19 @@ class NBRW(SRW):
         # This code assumes that vertex U is the current vetex.
         assert u == self.current
         if v == self.prev_vertex():
-            return .001
+            return EPS
         else:
             return 1.
 
 class SARW(SRW):
     """Implementation of the self-avoiding random walk (SARW) agent."""
     def weight(self, u, v):
+        """SARW is equivalent to SRW except that the agent tries to avoid to
+        re-visit vertices that the agent has already visited."""
         if u is None:
             u = self.current
         if self.nvisits[v]:
-            return .001
+            return EPS
         else:
             return 1.
 
@@ -132,12 +136,17 @@ class VARW(SRW):
     """Implementation of the random walk with vicinity avoidance (VARW)
     agent."""
     def weight(self, u, v):
+        """VARW tries to avoid vicinity (i.e., neighbor vertices of the
+        previously-visited vertices)."""
         if u is None:
             u = self.current
         # This code assumes that vertex U is the current vetex.
+        assert u == self.current
+        # NOTE: the original VA-RW avoids neighbors of the last K vertices, rather 
+        # than those of the previous one.
         t = self.prev_vertex()
         if t and self.graph.has_edge(t, v):
-            return .001
+            return EPS
         else:
             return 1.
 
@@ -148,6 +157,9 @@ class BiasedRW(SRW):
         super().__init__(*kargs, **kwargs)
 
     def weight(self, u, v):
+        """Biased RW randomlyh chooses one of its neighbor with the
+        probability proportional to d_v^alpha where d_v is the degree of
+        vertex V and alpha is a control parameter."""
         if u is None:
             u = self.current
         dv = self.graph.degree(v)
@@ -160,6 +172,7 @@ class LZRW(SRW):
         super().__init__(*kargs, **kwargs)
 
     def pick_next(self, u=None):
+        """LZRW probabilistically stays at the current vertex."""
         if u is None:
             u = self.current
         if random.random() <= self.laziness:
@@ -178,10 +191,29 @@ class BloomRW(SRW):
         if u is None:
             u = self.current
         if self.bf.query(v):
-            return .0001
+            return EPS
         else:
             return 1.
 
     def move_to(self, v):
         super().move_to(v)
         self.bf.add(v)
+
+class MixedRW(BloomRW):
+    def weight(self, u, v):
+        if u is None:
+            u = self.current
+        if self.bf.query(v):
+            return EPS
+        # This code assumes that vertex U is the current vetex.
+        assert u == self.current
+        if v == self.prev_vertex():
+            return EPS
+        # NOTE: the original VA-RW avoids neighbors of the last K vertices, rather 
+        # than those of the previous one.
+        t = self.prev_vertex()
+        if t and self.graph.has_edge(t, v):
+            return EPS
+        dv = self.graph.degree(v)
+        alpha = -.5
+        return dv**alpha
