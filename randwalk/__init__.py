@@ -47,16 +47,17 @@ class SRW:
     def __init__(self, graph=None, current=None):
         self.graph = graph
         self.path = []  # List of visited vertiecs.
+        self.step = 0  # Global clock.
         self.nvisits = collections.defaultdict(
             int)  # Records the number of vists.
+        self.ncovered = 0 # The number of uniquely visisted vertices.
         self.hitting = collections.defaultdict(
             int)  # Records the first visiting time.
-        self.step = 0  # Global clock.
         if current:
             self.move_to(current)
 
     def __repr__(self):
-        return f'SRW(step={self.step}, current={self.current}, ncovered={self.ncovered()})'
+        return f'SRW(step={self.step}, current={self.current}, ncovered={self.ncovered})'
 
     def weight(self, u, v):
         """Transistion weight form vertex U to vertex V."""
@@ -87,21 +88,22 @@ class SRW:
         """Move the random walker to vertex V."""
         self.current = v
         self.path.append(v)
-        self.nvisits[v] += 1
-        # Record the time if this is the first visit.
-        if v not in self.hitting:
+        if not self.nvisits[v]: # is this the first time?
             self.hitting[v] = self.step
+            self.ncovered += 1
+        self.nvisits[v] += 1
 
     def advance(self):
         """Advance the random walker one step forward."""
         v = self.pick_next()
         self.move_to(v)
         self.step += 1
-
-    def ncovered(self):
-        """Return the number of visisted unique vertices."""
-        # Note: Too slow; need refactoring.
-        return len(self.nvisits)
+            
+    def prev_vertex(self, n=1):
+        try:
+            return self.path[-(n + 1)]
+        except IndexError:
+            return None
 
 # ----------------------------------------------------------------
 class NBRW(SRW):
@@ -111,12 +113,10 @@ class NBRW(SRW):
             u = self.current
         # This code assumes that vertex U is the current vetex.
         assert u == self.current
-        try:
-            if v == self.path[-2]:
-                return .001
-        except IndexError:
-            pass
-        return 1.
+        if v == self.prev_vertex():
+            return .001
+        else:
+            return 1.
 
 class SARW(SRW):
     """Implementation of the self-avoiding random walk (SARW) agent."""
@@ -125,7 +125,21 @@ class SARW(SRW):
             u = self.current
         if self.nvisits[v]:
             return .001
-        return 1.
+        else:
+            return 1.
+
+class VARW(SRW):
+    """Implementation of the random walk with vicinity avoidance (VARW)
+    agent."""
+    def weight(self, u, v):
+        if u is None:
+            u = self.current
+        # This code assumes that vertex U is the current vetex.
+        t = self.prev_vertex()
+        if t and self.graph.has_edge(t, v):
+            return .001
+        else:
+            return 1.
 
 class BiasedRW(SRW):
     """Implementation of the biased random walk (Biased-RW) agent."""
@@ -138,6 +152,20 @@ class BiasedRW(SRW):
             u = self.current
         dv = self.graph.degree(v)
         return dv**self.alpha
+
+class LZRW(SRW):
+    """Implementation of the lazy random walk (LZRW) agent."""
+    def __init__(self, laziness=.2, *kargs, **kwargs):
+        self.laziness = laziness
+        super().__init__(*kargs, **kwargs)
+
+    def pick_next(self, u=None):
+        if u is None:
+            u = self.current
+        if random.random() <= self.laziness:
+            return u
+        else:
+            return super().pick_next(u)
 
 class BloomRW(SRW):
     """Implementation of the random walk with the Bloom filter (Bloom-RW)
