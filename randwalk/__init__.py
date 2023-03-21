@@ -10,8 +10,6 @@
 import collections
 import random
 
-import graph_tools
-
 EPS = 1e-4
 
 # ----------------------------------------------------------------
@@ -115,7 +113,23 @@ class SRW:
         print(f'{self.step}\tstatus\t{self.ncovered}\t{self.n_nodes}')
 
 # ----------------------------------------------------------------
-class NBRW(SRW):
+class BiasedRW(SRW):
+    """Implementation of the biased random walk (Biased-RW) agent."""
+    def __init__(self, alpha=-.5, *kargs, **kwargs):
+        self.alpha = alpha
+        super().__init__(*kargs, **kwargs)
+
+    def weight(self, u, v):
+        """Biased RW randomlyh chooses one of its neighbor with the
+        probability proportional to d_v^alpha where d_v is the degree of
+        vertex V and alpha is a control parameter."""
+        if u is None:
+            u = self.current
+        w = super().weight(u, v)
+        dv = self.graph.degree(v)
+        return w * dv**self.alpha
+
+class NBRW(BiasedRW):
     """Implementation of the non-backtracking random walk (NBRW) agent."""
     def weight(self, u, v):
         if u is None:
@@ -127,7 +141,7 @@ class NBRW(SRW):
         else:
             return super().weight(u, v)
 
-class SARW(SRW):
+class SARW(BiasedRW):
     """Implementation of the self-avoiding random walk (SARW) agent."""
     def weight(self, u, v):
         """SARW is equivalent to SRW except that the agent tries to avoid to
@@ -138,6 +152,81 @@ class SARW(SRW):
             return EPS
         else:
             return super().weight(u, v)
+
+class BloomRW(BiasedRW):
+    """Implementation of the random walk with the Bloom filter (Bloom-RW)
+    agent."""
+    def __init__(self, bf_size=None, *kargs, **kwargs):
+        self.bf = BloomFilter(size=bf_size)
+        super().__init__(*kargs, **kwargs)
+
+    def weight(self, u, v):
+        if u is None:
+            u = self.current
+        if self.bf.query(v):
+            return EPS
+        else:
+            return super().weight(u, v)
+
+    def move_to(self, v):
+        super().move_to(v)
+        self.bf.add(v)
+
+class VARW(NBRW):
+    """Implementation of the random walk with vicinity avoidance (VARW)
+    agent."""
+    def weight(self, u, v):
+        """VARW tries to avoid vicinity (i.e., neighbor vertices of the
+        previously-visited vertices)."""
+        if u is None:
+            u = self.current
+        # This code assumes that vertex U is the current vetex.
+        assert u == self.current
+        # NOTE: the original VA-RW avoids neighbors of the last K vertices, rather 
+        # than those of the previous one.
+        t = self.prev_vertex()
+        if t and self.graph.has_edge(t, v):
+            return EPS
+        else:
+            return super().weight(u, v)
+
+# ----------------------------------------------------------------
+class LZRW(SRW):
+    """Implementation of the lazy random walk (LZRW) agent."""
+    def __init__(self, laziness=.2, *kargs, **kwargs):
+        self.laziness = laziness
+        super().__init__(*kargs, **kwargs)
+
+    def pick_next(self, u=None):
+        """LZRW probabilistically stays at the current vertex."""
+        if u is None:
+            u = self.current
+        if random.random() <= self.laziness:
+            return u
+        else:
+            return super().pick_next(u)
+
+class MixedRW(BloomRW):
+    def weight(self, u, v):
+        if u is None:
+            u = self.current
+        # This code assumes that vertex U is the current vetex.
+        assert u == self.current
+        # NBRW-like behavior.
+        if v == self.prev_vertex():
+            return EPS
+        # VARW-like behavior.
+        # NOTE: the original VA-RW avoids neighbors of the last K vertices, rather 
+        # than those of the previous one.
+        t = self.prev_vertex()
+        if t and self.graph.has_edge(t, v):
+            return EPS
+        # BloomRW-like behavior.
+        if self.bf.query(v):
+            return EPS
+        # BiasedRW-like behavior.
+        dv = self.graph.degree(v)
+        return dv**-.5
 
 class FIFORW(SRW):
     def __init__(self, size=3, *kargs, **kwargs):
@@ -164,93 +253,3 @@ class LRVRW(FIFORW):
         if v in self.history:
             self.history.remove(v)
         self.history.append(v)
-
-class VARW(NBRW):
-    """Implementation of the random walk with vicinity avoidance (VARW)
-    agent."""
-    def weight(self, u, v):
-        """VARW tries to avoid vicinity (i.e., neighbor vertices of the
-        previously-visited vertices)."""
-        if u is None:
-            u = self.current
-        # This code assumes that vertex U is the current vetex.
-        assert u == self.current
-        # NOTE: the original VA-RW avoids neighbors of the last K vertices, rather 
-        # than those of the previous one.
-        t = self.prev_vertex()
-        if t and self.graph.has_edge(t, v):
-            return EPS
-        else:
-            return super().weight(u, v)
-
-class BiasedRW(SRW):
-    """Implementation of the biased random walk (Biased-RW) agent."""
-    def __init__(self, alpha=-.5, *kargs, **kwargs):
-        self.alpha = alpha
-        super().__init__(*kargs, **kwargs)
-
-    def weight(self, u, v):
-        """Biased RW randomlyh chooses one of its neighbor with the
-        probability proportional to d_v^alpha where d_v is the degree of
-        vertex V and alpha is a control parameter."""
-        if u is None:
-            u = self.current
-        w = super().weight(u, v)
-        dv = self.graph.degree(v)
-        return w * dv**self.alpha
-
-class LZRW(SRW):
-    """Implementation of the lazy random walk (LZRW) agent."""
-    def __init__(self, laziness=.2, *kargs, **kwargs):
-        self.laziness = laziness
-        super().__init__(*kargs, **kwargs)
-
-    def pick_next(self, u=None):
-        """LZRW probabilistically stays at the current vertex."""
-        if u is None:
-            u = self.current
-        if random.random() <= self.laziness:
-            return u
-        else:
-            return super().pick_next(u)
-
-class BloomRW(SRW):
-    """Implementation of the random walk with the Bloom filter (Bloom-RW)
-    agent."""
-    def __init__(self, bf_size=None, *kargs, **kwargs):
-        self.bf = BloomFilter(size=bf_size)
-        super().__init__(*kargs, **kwargs)
-
-    def weight(self, u, v):
-        if u is None:
-            u = self.current
-        if self.bf.query(v):
-            return EPS
-        else:
-            return super().weight(u, v)
-
-    def move_to(self, v):
-        super().move_to(v)
-        self.bf.add(v)
-
-class MixedRW(BloomRW):
-    def weight(self, u, v):
-        if u is None:
-            u = self.current
-        # This code assumes that vertex U is the current vetex.
-        assert u == self.current
-        # NBRW-like behavior.
-        if v == self.prev_vertex():
-            return EPS
-        # VARW-like behavior.
-        # NOTE: the original VA-RW avoids neighbors of the last K vertices, rather 
-        # than those of the previous one.
-        t = self.prev_vertex()
-        if t and self.graph.has_edge(t, v):
-            return EPS
-        # BloomRW-like behavior.
-        if self.bf.query(v):
-            return EPS
-        # BiasedRW-like behavior.
-        dv = self.graph.degree(v)
-        return dv**-.5
