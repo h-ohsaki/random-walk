@@ -1,14 +1,16 @@
 #!/usr/bin/env pypy3
 #
-#
+# Run a simulation of random walk on graph under specified conditions.
 # Copyright (c) 2023, Hiroyuki Ohsaki.
 # All rights reserved.
-#
-# $Id: run.py,v 1.6 2023/03/20 08:44:56 ohsaki Exp ohsaki $
 #
 
 import random
 import sys
+import os
+
+home_dir = os.getenv('HOME')
+sys.path.insert(1, f'{home_dir}/src/randwalk')
 
 from perlcompat import die, warn, getopts
 import randwalk
