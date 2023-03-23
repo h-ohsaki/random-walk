@@ -8,7 +8,10 @@
 #
 
 import collections
+import math
 import random
+
+import numpy
 
 EPS = 1e-4
 
@@ -51,7 +54,7 @@ class SRW:
         self.step = 0  # Global clock.
         self.nvisits = collections.defaultdict(
             int)  # Records the number of vists.
-        self.ncovered = 0 # The number of uniquely visisted vertices.
+        self.ncovered = 0  # The number of uniquely visisted vertices.
         self.hitting = collections.defaultdict(
             int)  # Records the first visiting time.
         if current:
@@ -89,7 +92,7 @@ class SRW:
         """Move the random walker to vertex V."""
         self.current = v
         self.path.append(v)
-        if not self.nvisits[v]: # is this the first time?
+        if not self.nvisits[v]:  # is this the first time?
             self.hitting[v] = self.step
             self.ncovered += 1
         self.nvisits[v] += 1
@@ -99,7 +102,7 @@ class SRW:
         v = self.pick_next()
         self.move_to(v)
         self.step += 1
-            
+
     def prev_vertex(self, n=1):
         try:
             return self.path[-(n + 1)]
@@ -182,7 +185,7 @@ class VARW(NBRW):
             u = self.current
         # This code assumes that vertex U is the current vetex.
         assert u == self.current
-        # NOTE: the original VA-RW avoids neighbors of the last K vertices, rather 
+        # NOTE: the original VA-RW avoids neighbors of the last K vertices, rather
         # than those of the previous one.
         t = self.prev_vertex()
         if t and self.graph.has_edge(t, v):
@@ -216,7 +219,7 @@ class MixedRW(BloomRW):
         if v == self.prev_vertex():
             return EPS
         # VARW-like behavior.
-        # NOTE: the original VA-RW avoids neighbors of the last K vertices, rather 
+        # NOTE: the original VA-RW avoids neighbors of the last K vertices, rather
         # than those of the previous one.
         t = self.prev_vertex()
         if t and self.graph.has_edge(t, v):
@@ -228,12 +231,12 @@ class MixedRW(BloomRW):
         dv = self.graph.degree(v)
         return dv**-.5
 
-class FIFORW(SRW):
-    def __init__(self, size=3, *kargs, **kwargs):
-        self.size = size
-        self.history = collections.deque(maxlen=size)
+class kSARW(BiasedRW):
+    def __init__(self, hist_size=3, *kargs, **kwargs):
+        self.hist_size = hist_size
+        self.history = collections.deque(maxlen=hist_size)
         super().__init__(*kargs, **kwargs)
-    
+
     def weight(self, u, v):
         if v in self.history:
             return EPS
@@ -242,14 +245,48 @@ class FIFORW(SRW):
 
     def move_to(self, v):
         super().move_to(v)
+        # Always place the recent entry at the top.
+        # NOTE: The history might have duplicates.
+        self.history.append(v)
+
+class kSARW_FIFO(kSARW):
+    def move_to(self, v):
+        super().move_to(v)
         if v not in self.history:
             # The oldest entry is flushed automatically.
             self.history.append(v)
 
-class LRVRW(FIFORW):
+class kSARW_LRU(kSARW):
     def move_to(self, v):
         super().move_to(v)
         # Always place the recent entry at the top.
         if v in self.history:
             self.history.remove(v)
         self.history.append(v)
+
+class MERW(SRW):
+    """Implementation of the maximal-entropy random walk (MERW)."""
+    def __init__(self, *kargs, **kwargs):
+        super().__init__(*kargs, **kwargs)
+        adj = self.graph.adjacency_matrix()
+        eigvals, eigvecs = numpy.linalg.eig(adj)
+        # Find the index of the largest eigenvalue.
+        i = max(enumerate(eigvals), key=lambda x: x[1])[0]
+        self.eigval1 = eigvals[i]
+        self.eigvec1 = eigvecs[:, i]
+        # Alaways use positive eigenvector.  The signs of all elements must
+        # be the same.
+        if self.eigvec1[0] < 0:
+            self.eigvec1 = -self.eigvec1
+
+    def weight(self, u, v):
+        if u is None:
+            u = self.current
+        return (1 / self.eigval1) * (self.eigvec1[v - 1] / self.eigvec1[u - 1])
+
+class BetweenRW(NBRW):
+    def weight(self, u, v):
+        if u is None:
+            u = self.current
+        b = self.graph.betweenness(v) / 100 / 100 + .00001
+        return 1/b**.3
