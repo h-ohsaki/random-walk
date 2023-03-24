@@ -283,10 +283,3 @@ class MERW(SRW):
         if u is None:
             u = self.current
         return (1 / self.eigval1) * (self.eigvec1[v - 1] / self.eigvec1[u - 1])
-
-class BetweenRW(NBRW):
-    def weight(self, u, v):
-        if u is None:
-            u = self.current
-        b = self.graph.betweenness(v) / 100 / 100 + .00001
-        return 1/b**.3
