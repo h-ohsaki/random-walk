@@ -1,6 +1,6 @@
-#!/usr/bin/env pypy3
+#!/usr/bin/env python3
 #
-# A sample program for randwalk module.
+# Compare performance of different RW stragtegies.
 # Copyright (c) 2023, Hiroyuki Ohsaki.
 # All rights reserved.
 #
@@ -11,9 +11,6 @@ import sys
 import math
 import statistics
 import os
-
-home_dir = os.getenv('HOME')
-sys.path.insert(1, f'{home_dir}/src/randwalk')
 
 from perlcompat import die, warn, getopts
 import randwalk
@@ -30,7 +27,7 @@ def create_graph(name, n_vertices=100, kavg=3.):
     n_edges = int(n_vertices * kavg / 2)
     g = graph_tools.Graph(directed=False)
     if name == 'random':
-        return g.create_graph('random', n_vertices, n_edges)
+        return g.create_random_graph(n_vertices, n_edges)
     if name == 'ba':
         return g.create_graph('ba', n_vertices, 10, int(kavg))
     if name == 'barandom':
@@ -53,9 +50,10 @@ def create_graph(name, n_vertices=100, kavg=3.):
     if name == '4-regular':
         return g.create_random_regular_graph(n_vertices, 4)
     if name == 'li_maini':
-        # NOTE: 5 clusters, 5% of vertices in each cluster, other vertices are 
+        # NOTE: 5 clusters, 5% of vertices in each cluster, other vertices are
         # added with preferential attachment.
-        return g.create_graph('li_maini', int(n_vertices * .75), 5, int(n_vertices * .25 / 5))
+        return g.create_graph('li_maini', int(n_vertices * .75), 5,
+                              int(n_vertices * .25 / 5))
     # FIXMME: support treeba, general_ba, and latent.
     assert False
 
@@ -66,10 +64,11 @@ def simulate(ntrials, label, agent_name, g, start_node):
     for n in range(1, ntrials + 1):
         # Create an agent of a given agent class.
         cls = eval('randwalk.' + agent_name)
-        agent = cls(graph=g, current=start_node)
+        agent = cls(graph=g, current=start_node, bf_size=10000)
         # Perform an instance of simulation.
         while agent.ncovered < n_vertices:
             agent.advance()
+            # agent.dump()
         # Collect statistics.
         covert_time = agent.step
         covert_times.append(covert_time)
@@ -85,7 +84,7 @@ def simulate(ntrials, label, agent_name, g, start_node):
     print(f'{label} {n:6} {avg_cover:8.2f} {avg_hitting:8.2f}')
 
 def main():
-    ntrials = 1000
+    ntrials = 100
     n_vertices = 100
     kavg = 3.
     start_vertex = 1
@@ -93,8 +92,8 @@ def main():
     for name in 'random ba barandom ring tree btree lattice voronoi db 3-regular 4-regular li_maini'.split(
     ):
         g = create_graph(name, n_vertices, kavg)
-        n = len(g.vertices())
-        m = len(g.edges())
+        n = g.nvertices()
+        m = g.nedges()
         graph_info = f'{name:8} {n:6} {m:6}'
         for agent in 'SRW BiasedRW SARW MixedRW BloomRW kSARW_LRU kSARW_FIFO kSARW VARW NBRW'.split(
         ):
