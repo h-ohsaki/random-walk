@@ -23,6 +23,12 @@ usage: {sys.argv[0]} [-v] [file...]
   -v    verbose mode
 """)
 
+def conf95(vals):
+    zval = 1.960
+    if len(vals) <= 1:
+        return 0
+    return zval * statistics.stdev(vals) / math.sqrt(len(vals))
+
 def create_graph(name, n_vertices=100, kavg=3.):
     n_edges = int(n_vertices * kavg / 2)
     g = graph_tools.Graph(directed=False)
@@ -77,18 +83,24 @@ def simulate(ntrials, label, agent_name, g, start_node):
         hitting_times.append(hitting_time)
         # Calcurate averages of cover and hitting times.
         avg_cover = statistics.mean(covert_times)
+        conf_cover = conf95(covert_times)
         avg_hitting = statistics.mean(hitting_times)
-        print(f'{label} {n:6} {avg_cover:8.2f} {avg_hitting:8.2f}\r',
-              file=sys.stderr,
-              end='')
-    print(f'{label} {n:6} {avg_cover:8.2f} {avg_hitting:8.2f}')
+        conf_hitting = conf95(hitting_times)
+        print(
+            f'{label} {n:6} {avg_cover:8.2f}+/-{conf_cover:6.2f} {avg_hitting:8.2f}+/-{conf_hitting:6.2f}\r',
+            file=sys.stderr,
+            end='')
+    print(
+        f'{label} {n:6} {avg_cover:8.2f}+/-{conf_cover:6.2f} {avg_hitting:8.2f}+/-{conf_hitting:6.2f}\r'
+    )
 
 def main():
-    ntrials = 100
+    ntrials = 1000
     n_vertices = 100
-    kavg = 3.
+    kavg = 2.
     start_vertex = 1
-    print('# agent    graph       |V|    |E|  trial       C      E[H]')
+    print(
+        '# agent    graph       |V|    |E|  trial        C              E[H]')
     for name in 'random ba barandom ring tree btree lattice voronoi db 3-regular 4-regular li_maini'.split(
     ):
         g = create_graph(name, n_vertices, kavg)
