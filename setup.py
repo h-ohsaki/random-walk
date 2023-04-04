@@ -11,7 +11,7 @@ with open('README.md', 'r') as fh:
 
 setuptools.setup(
     name='randwalk',
-    version='0.4',
+    version='0.5',
     author='Hiroyuki Ohsaki',
     author_email='ohsaki@lsnl.jp',
     description='random walk agents on graph supporting several strategies',
