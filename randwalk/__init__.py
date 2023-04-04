@@ -61,7 +61,10 @@ class SRW:
             self.move_to(current)
 
     def __repr__(self):
-        return f'SRW(step={self.step}, current={self.current}, ncovered={self.ncovered})'
+        return f'{self.name()}(step={self.step}, current={self.current}, ncovered={self.ncovered})'
+
+    def name(self):
+        return type(self).__name__
 
     def weight(self, u, v):
         """Transistion weight form vertex U to vertex V."""
