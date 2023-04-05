@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+#
+# Run a simulation of random walk on graph under specified conditions.
+# Copyright (c) 2023, Hiroyuki Ohsaki.
+# All rights reserved.
+#
+
+import os
+import random
+import statistics
+import sys
+
+from perlcompat import die, warn, getopts
+import graph_tools
+import randwalk
+import tbdump
+
+def usage():
+    die(f"""\
+usage: {sys.argv[0]} [-s #] [-n #] [-k #]
+  -s #      seed of random number generator
+  -n #      the number of vertices (default: 100)
+  -k #      average degree (default: 3)
+  -t type   type of graph (random/barandom)
+""")
+
+def main():
+    opt = getopts('s:n:k:t:') or usage()
+    seed = int(opt.s) if opt.s else None
+    n_nodes = int(opt.n) if opt.n else 1000
+    kavg = float(opt.k) if opt.k else 2.
+    graph_type = opt.t if opt.t else 'random'
+    random.seed(seed)
+
+    # Create graph.
+    g = graph_tools.Graph(directed=False)
+    g = g.create_graph(graph_type, n_nodes, int(n_nodes * kavg / 2))
+
+    agent_names = 'SRW SARW NBRW kSARW BloomRW'.split()
+    agents = [eval('randwalk.' + name)(graph=g, current=1) for name in agent_names]
+    t = 0
+    while True:
+        print(f'_t={t}', end='')
+        for agent in agents:
+            agent.advance()
+            name = agent.name()
+            ncovered = agent.ncovered
+            hitting_times = [agent.hitting[v] for v in agent.hitting]
+            hitting_time = statistics.mean(hitting_times)
+            print(f'\tN.{name}={ncovered}\tH.{name}={hitting_time}', end='')
+        print()
+        t += 1
+
+if __name__ == "__main__":
+    main()
