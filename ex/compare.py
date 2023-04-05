@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env pypy3
 #
 # Compare performance of different RW stragtegies.
 # Copyright (c) 2023, Hiroyuki Ohsaki.
@@ -10,107 +10,129 @@
 import sys
 import math
 import statistics
-import os
 
 from perlcompat import die, warn, getopts
 import randwalk
 import graph_tools
 import tbdump
 
+MAX_STEPS = 10000
+GRAPH_TYPES = 'random ba barandom ring tree btree lattice voronoi db 3-regular 4-regular li_maini'.split(
+)
+AGENT_NAMES = 'SRW SARW HybridRW BloomRW kHistory VARW NBRW BiasedRW EigenvecRW ClosenessRW BetweennessRW EccentricityRW MERW'.split(
+)
+
 def usage():
     die(f"""\
-usage: {sys.argv[0]} [-v] [file...]
-  -v    verbose mode
+usage: {sys.argv[0]} [-N #] [-n #] [-k #]
+  -N    the number of simulation runs (default: 100)
+  -n    the desired number of vertices (default: 100)
+  -k    the desired average degree (default: 2.5)
 """)
 
 def conf95(vals):
+    """Return 95% confidence interval for measurements VALS."""
     zval = 1.960
     if len(vals) <= 1:
         return 0
     return zval * statistics.stdev(vals) / math.sqrt(len(vals))
 
-def create_graph(name, n_vertices=100, kavg=3.):
-    n_edges = int(n_vertices * kavg / 2)
+def mean_and_conf95(vals):
+    """Return the mean and the 95% confience interval for measurements
+    VALS."""
+    return statistics.mean(vals), conf95(vals)
+
+def create_graph(type_, n=100, k=3.):
+    """Randomly generate a graph instance using network generation model TYPE_.
+    If possible, a graph with N vertices and the average degree of K is
+    generated."""
+    m = int(n * k / 2)
     g = graph_tools.Graph(directed=False)
-    if name == 'random':
-        return g.create_random_graph(n_vertices, n_edges)
-    if name == 'ba':
-        return g.create_graph('ba', n_vertices, 10, int(kavg))
-    if name == 'barandom':
-        return g.create_graph('barandom', n_vertices, n_edges)
-    if name == 'ring':
-        return g.create_graph('ring', n_vertices)
-    if name == 'tree':
-        return g.create_graph('tree', n_vertices)
-    if name == 'btree':
-        return g.create_graph('btree', n_vertices)
-    if name == 'lattice':
-        return g.create_graph('lattice', 2, int(math.sqrt(n_vertices)))
-    if name == 'voronoi':
-        return g.create_graph('voronoi', n_vertices // 2)
-    if name == 'db':
+    g.set_graph_attribute('name', type_)
+    if type_ == 'random':
+        return g.create_random_graph(n, m)
+    if type_ == 'ba':
+        return g.create_graph('ba', n, 10, int(k))
+    if type_ == 'barandom':
+        return g.create_graph('barandom', n, m)
+    if type_ == 'ring':
+        return g.create_graph('ring', n)
+    if type_ == 'tree':
+        return g.create_graph('tree', n)
+    if type_ == 'btree':
+        return g.create_graph('btree', n)
+    if type_ == 'lattice':
+        return g.create_graph('lattice', 2, int(math.sqrt(n)))
+    if type_ == 'voronoi':
+        return g.create_graph('voronoi', n // 2)
+    if type_ == 'db':
         # NOTE: average degree must be divisable by 2.
-        return g.create_graph('db', n_vertices, n_vertices * 2)
-    if name == '3-regular':
-        return g.create_random_regular_graph(n_vertices, 3)
-    if name == '4-regular':
-        return g.create_random_regular_graph(n_vertices, 4)
-    if name == 'li_maini':
+        return g.create_graph('db', n, n * 2)
+    if type_ == '3-regular':
+        return g.create_random_regular_graph(n, 3)
+    if type_ == '4-regular':
+        return g.create_random_regular_graph(n, 4)
+    if type_ == 'li_maini':
         # NOTE: 5 clusters, 5% of vertices in each cluster, other vertices are
         # added with preferential attachment.
-        return g.create_graph('li_maini', int(n_vertices * .75), 5,
-                              int(n_vertices * .25 / 5))
+        return g.create_graph('li_maini', int(n * .75), 5, int(n * .25 / 5))
     # FIXMME: support treeba, general_ba, and latent.
     assert False
 
-def simulate(ntrials, label, agent_name, g, start_node):
-    n_vertices = len(g.vertices())
-    covert_times = []
-    hitting_times = []
-    for n in range(1, ntrials + 1):
-        # Create an agent of a given agent class.
+def header_str():
+    return '# agent     \talpha\tN\tM\ttype\tcount\tC\t95%\tE[H]\t95%'
+
+def status_str(agent, g, count, covers, hittings):
+    name = agent.name()
+    try:
+        alpha = agent.alpha
+    except AttributeError:
+        alpha = None
+    n = g.nvertices()
+    m = g.nedges()
+    type_ = g.get_graph_attribute('name')
+    # Collect statistics.
+    cover = agent.step
+    covers.append(cover)
+    # NOTE: hiting[v] records the hitting time at vertex V.
+    hitting = statistics.mean(agent.hitting.values())
+    hittings.append(hitting)
+    c_avg, c_conf = mean_and_conf95(covers)
+    h_avg, h_conf = mean_and_conf95(hittings)
+    return f'{name:12}\t{alpha}\t{n}\t{m}\t{type_}\t{count}\t{c_avg:.0f}\t{c_conf:.0f}\t{h_avg:.0f}\t{h_conf:.0f}'
+
+def simulate(agent_name, g, start_vertex=1, alpha=0, ntrials=100):
+    covers = []
+    hittings = []
+    for count in range(1, ntrials + 1):
+        # Create an agent of a given agent name.
         cls = eval('randwalk.' + agent_name)
-        agent = cls(graph=g, current=start_node, bf_size=10000)
+        agent = cls(graph=g, current=start_vertex, alpha=alpha)
         # Perform an instance of simulation.
-        while agent.ncovered < n_vertices:
+        while agent.ncovered < g.nvertices() and agent.step < MAX_STEPS:
             agent.advance()
-            # agent.dump()
-        # Collect statistics.
-        covert_time = agent.step
-        covert_times.append(covert_time)
-        samples = [agent.hitting[v] for v in g.vertices()]
-        hitting_time = statistics.mean(samples)
-        hitting_times.append(hitting_time)
-        # Calcurate averages of cover and hitting times.
-        avg_cover = statistics.mean(covert_times)
-        conf_cover = conf95(covert_times)
-        avg_hitting = statistics.mean(hitting_times)
-        conf_hitting = conf95(hitting_times)
-        print(
-            f'{label} {n:6} {avg_cover:8.2f}+/-{conf_cover:6.2f} {avg_hitting:8.2f}+/-{conf_hitting:6.2f}\r',
-            file=sys.stderr,
-            end='')
-    print(
-        f'{label} {n:6} {avg_cover:8.2f}+/-{conf_cover:6.2f} {avg_hitting:8.2f}+/-{conf_hitting:6.2f}\r'
-    )
+        stat = status_str(agent, g, count, covers, hittings)
+        print(stat + '\r', file=sys.stderr, end='')
+    # FIXME: workaround when the stdout is redirected.
+    if not sys.stdout.isatty():
+        print('', file=sys.stderr)
+    print(stat + ' ')
 
 def main():
-    ntrials = 1000
-    n_vertices = 100
-    kavg = 2.
+    opt = getopts('N:n:k:') or usage()
+    ntrials = int(opt.N) if opt.N else 100
+    n_desired = int(opt.n) if opt.n else 100
+    k_desired = float(opt.k) if opt.k else 2.5
     start_vertex = 1
-    print(
-        '# agent    graph       |V|    |E|  trial        C              E[H]')
-    for name in 'random ba barandom ring tree btree lattice voronoi db 3-regular 4-regular li_maini'.split(
-    ):
-        g = create_graph(name, n_vertices, kavg)
-        n = g.nvertices()
-        m = g.nedges()
-        graph_info = f'{name:8} {n:6} {m:6}'
-        for agent in 'SRW BiasedRW SARW MixedRW BloomRW kSARW_LRU kSARW_FIFO kSARW VARW NBRW'.split(
-        ):
-            label = f'{agent:10} {graph_info}'
-            simulate(ntrials, label, agent, g, start_vertex)
+    print(header_str())
+    for type_ in GRAPH_TYPES:
+        g = create_graph(type_, n_desired, k_desired)
+        for agent in AGENT_NAMES:
+            alphas = [0]
+            if agent in 'NBRW BiasedRW EigenvecRW ClosenessRW BetweennessRW EccentricityRW':
+                alphas = [-.4, -.2, 0, .2, .4]
+            for alpha in alphas:
+                simulate(agent, g, start_vertex, alpha, ntrials)
 
 if __name__ == "__main__":
     main()
