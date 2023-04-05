@@ -82,7 +82,7 @@ def create_graph(type_, n=100, k=3.):
 def header_str():
     return '# agent     \talpha\tN\tM\ttype\tcount\tC\t95%\tE[H]\t95%'
 
-def status_str(agent, g, count, covers, hittings):
+def status_str(agent, g, count, naborts, covers, hittings):
     name = agent.name()
     try:
         alpha = agent.alpha
@@ -99,20 +99,27 @@ def status_str(agent, g, count, covers, hittings):
     hittings.append(hitting)
     c_avg, c_conf = mean_and_conf95(covers)
     h_avg, h_conf = mean_and_conf95(hittings)
-    return f'{name:12}\t{alpha}\t{n}\t{m}\t{type_}\t{count}\t{c_avg:.0f}\t{c_conf:.0f}\t{h_avg:.0f}\t{h_conf:.0f}'
+    return f'{name:12}\t{alpha}\t{n}\t{m}\t{type_}\t{count}\t{naborts}\t{c_avg:.0f}\t{c_conf:.0f}\t{h_avg:.0f}\t{h_conf:.0f}'
 
 def simulate(agent_name, g, start_vertex=1, alpha=0, ntrials=100):
     covers = []
     hittings = []
+    naborts = 0
     for count in range(1, ntrials + 1):
         # Create an agent of a given agent name.
         cls = eval('randwalk.' + agent_name)
         agent = cls(graph=g, current=start_vertex, alpha=alpha)
         # Perform an instance of simulation.
-        while agent.ncovered < g.nvertices() and agent.step < MAX_STEPS:
+        while agent.ncovered < g.nvertices():
             agent.advance()
-        stat = status_str(agent, g, count, covers, hittings)
+            if agent.step > MAX_STEPS:
+                naborts += 1
+                break
+        stat = status_str(agent, g, count, naborts, covers, hittings)
         print(stat + '\r', file=sys.stderr, end='')
+        # Abort the experiment if it takes too long.
+        if naborts >= 10:
+            break
     # FIXME: workaround when the stdout is redirected.
     if not sys.stdout.isatty():
         print('', file=sys.stderr)
