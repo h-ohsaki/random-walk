@@ -18,6 +18,7 @@ EPS = 1e-4
 # NOTE: The follwing code is essentially based on
 # https://stackoverflow.com/questions/9026519/bloomfilter-python .
 class BloomFilter:
+    """Bloom filter of size SIZE with three types of hash functions."""
     def __init__(self, size):
         if size is None:
             size = 1000
@@ -45,7 +46,7 @@ class BloomFilter:
 
 # ----------------------------------------------------------------
 class SRW:
-    """Implementation of the simple random walk (SRW) agent."""
+    """Simple Random Walk (SRW) agent."""
     def __init__(self, graph=None, current=None, *kargs, **kwargs):
         self.graph = graph
         self.n_nodes = len(self.graph.vertices())
@@ -119,7 +120,7 @@ class SRW:
 
 # ----------------------------------------------------------------
 class BiasedRW(SRW):
-    """Implementation of the biased random walk (Biased-RW) agent."""
+    """Biased Random Walk (Biased-RW) agent."""
     def __init__(self, alpha=-.5, *kargs, **kwargs):
         self.alpha = alpha
         super().__init__(*kargs, **kwargs)
@@ -135,7 +136,7 @@ class BiasedRW(SRW):
         return w * dv**self.alpha
 
 class NBRW(BiasedRW):
-    """Implementation of the non-backtracking random walk (NBRW) agent."""
+    """Non-Backtracking Random Walk (NBRW) agent."""
     def weight(self, u, v):
         if u is None:
             u = self.current
@@ -147,7 +148,7 @@ class NBRW(BiasedRW):
             return super().weight(u, v)
 
 class SARW(BiasedRW):
-    """Implementation of the self-avoiding random walk (SARW) agent."""
+    """Self-Avoiding Random Walk (SARW) agent."""
     def weight(self, u, v):
         """SARW is equivalent to SRW except that the agent tries to avoid to
         re-visit vertices that the agent has already visited."""
@@ -159,8 +160,7 @@ class SARW(BiasedRW):
             return super().weight(u, v)
 
 class BloomRW(BiasedRW):
-    """Implementation of the random walk with the Bloom filter (Bloom-RW)
-    agent."""
+    """Random Walk with Bloom filter (Bloom-RW) agent."""
     def __init__(self, bf_size=None, *kargs, **kwargs):
         self.bf = BloomFilter(size=bf_size)
         super().__init__(*kargs, **kwargs)
@@ -178,8 +178,7 @@ class BloomRW(BiasedRW):
         self.bf.add(v)
 
 class VARW(NBRW):
-    """Implementation of the random walk with vicinity avoidance (VARW)
-    agent."""
+    """Random Walk with Vicinity Avoidance (VARW) agent."""
     def weight(self, u, v):
         """VARW tries to avoid vicinity (i.e., neighbor vertices of the
         previously-visited vertices)."""
@@ -197,8 +196,8 @@ class VARW(NBRW):
 
 # ----------------------------------------------------------------
 class LZRW(SRW):
-    """Implementation of the lazy random walk (LZRW) agent."""
-    def __init__(self, laziness=.2, *kargs, **kwargs):
+    """Lazy Random Walk (LZRW) agent."""
+    def __init__(self, laziness=.5, *kargs, **kwargs):
         self.laziness = laziness
         super().__init__(*kargs, **kwargs)
 
@@ -211,7 +210,8 @@ class LZRW(SRW):
         else:
             return super().pick_next(u)
 
-class MixedRW(BloomRW):
+class HybridRW(BloomRW):
+    """Hybrid Random Walk (HybridRW) agent."""
     def weight(self, u, v):
         if u is None:
             u = self.current
@@ -233,7 +233,8 @@ class MixedRW(BloomRW):
         dv = self.graph.degree(v)
         return dv**-.5
 
-class kSARW(BiasedRW):
+class kHistory(BiasedRW):
+    """k-History Random Walk (kHistoryRW) agent."""
     def __init__(self, hist_size=3, *kargs, **kwargs):
         self.hist_size = hist_size
         self.history = collections.deque(maxlen=hist_size)
@@ -251,14 +252,16 @@ class kSARW(BiasedRW):
         # NOTE: The history might have duplicates.
         self.history.append(v)
 
-class kSARW_FIFO(kSARW):
+class kHistory_FIFO(kHistory):
+    """k-History Random Walk with FIFO replacement (kHistoryRW-FIFO) agent."""
     def move_to(self, v):
         super().move_to(v)
         if v not in self.history:
             # The oldest entry is flushed automatically.
             self.history.append(v)
 
-class kSARW_LRU(kSARW):
+class kHistory_LRU(kHistory):
+    """k-History Random Walk with LRU replacement (kHistoryRW-LRU) agent."""
     def move_to(self, v):
         super().move_to(v)
         # Always place the recent entry at the top.
@@ -266,7 +269,8 @@ class kSARW_LRU(kSARW):
             self.history.remove(v)
         self.history.append(v)
 
-class EigenRW(BiasedRW):
+class EigenvecRW(BiasedRW):
+    """Eigenvector Random Walk (EigenvecRW) agent."""
     def __init__(self, *kargs, **kwargs):
         super().__init__(*kargs, **kwargs)
         # Precompute centrality scores of all vertices.
@@ -283,20 +287,23 @@ class EigenRW(BiasedRW):
         c = self.centrality_cache[v] + EPS
         return c**self.alpha
 
-class CloseRW(EigenRW):
+class ClosenessRW(EigenvecRW):
+    """Closeness Random Walk (ClosenessRW) agent."""
     def centrality(self, v):
         return self.graph.closeness_centrality(v)
 
-class BetweenRW(EigenRW):
+class BetweennessRW(EigenvecRW):
+    """Betweenness Random Walk (BetweennessRW) agent."""
     def centrality(self, v):
         return self.graph.betweenness_centrality(v)
 
-class EccentRW(EigenRW):
+class EccentricityRW(EigenvecRW):
+    """Eccentricity Random Walk (EccentricityRW) agent."""
     def centrality(self, v):
         return self.graph.eccentricity(v)
 
 class MERW(SRW):
-    """Implementation of the maximal-entropy random walk (MERW)."""
+    """Maximal-Entropy Random Walk (MERW) agentg."""
     def __init__(self, *kargs, **kwargs):
         super().__init__(*kargs, **kwargs)
         adj = self.graph.adjacency_matrix()
