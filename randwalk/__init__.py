@@ -4,13 +4,12 @@
 # Copyright (c) 2023, Hiroyuki Ohsaki.
 # All rights reserved.
 #
-# $Id: run.py,v 1.6 2023/03/20 08:44:56 ohsaki Exp ohsaki $
-#
 
 import collections
 import math
 import random
 
+from perlcompat import die, warn, getopts
 import numpy
 
 EPS = 1e-4
@@ -266,6 +265,35 @@ class kSARW_LRU(kSARW):
         if v in self.history:
             self.history.remove(v)
         self.history.append(v)
+
+class EigenRW(BiasedRW):
+    def __init__(self, *kargs, **kwargs):
+        super().__init__(*kargs, **kwargs)
+        # Precompute centrality scores of all vertices.
+        self.centrality_cache = {}
+        for v in self.graph.vertices():
+            self.centrality_cache[v] = self.centrality(v)
+
+    def centrality(self, v):
+        return self.graph.eigenvector_centrality(v)
+
+    def weight(self, u, v):
+        if u is None:
+            u = self.current
+        c = self.centrality_cache[v] + EPS
+        return c**self.alpha
+
+class CloseRW(EigenRW):
+    def centrality(self, v):
+        return self.graph.closeness_centrality(v)
+
+class BetweenRW(EigenRW):
+    def centrality(self, v):
+        return self.graph.betweenness_centrality(v)
+
+class EccentRW(EigenRW):
+    def centrality(self, v):
+        return self.graph.eccentricity(v)
 
 class MERW(SRW):
     """Implementation of the maximal-entropy random walk (MERW)."""
