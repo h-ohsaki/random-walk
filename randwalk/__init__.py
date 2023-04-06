@@ -49,7 +49,6 @@ class SRW:
     """Simple Random Walk (SRW) agent."""
     def __init__(self, graph=None, current=None, *kargs, **kwargs):
         self.graph = graph
-        self.n_nodes = len(self.graph.vertices())
         self.path = []  # List of visited vertiecs.
         self.step = 0  # Global clock.
         self.nvisits = collections.defaultdict(
@@ -116,7 +115,7 @@ class SRW:
         v = self.current
         d = self.graph.degree(v)
         print(f'{self.step}\tvisit\t{v}\t{self.nvisits[v]}\t{d}')
-        print(f'{self.step}\tstatus\t{self.ncovered}\t{self.n_nodes}')
+        print(f'{self.step}\tstatus\t{self.ncovered}\t{self.graph.nvertices()}')
 
 # ----------------------------------------------------------------
 class BiasedRW(SRW):
@@ -231,7 +230,7 @@ class HybridRW(BloomRW):
             return EPS
         # BiasedRW-like behavior.
         dv = self.graph.degree(v)
-        return dv**-.5
+        return dv**self.alpha
 
 class kHistory(BiasedRW):
     """k-History Random Walk (kHistoryRW) agent."""
@@ -255,7 +254,8 @@ class kHistory(BiasedRW):
 class kHistory_FIFO(kHistory):
     """k-History Random Walk with FIFO replacement (kHistoryRW-FIFO) agent."""
     def move_to(self, v):
-        super().move_to(v)
+        # FIXME: Avoid hard-coding.
+        super(BiasedRW, self).move_to(v)
         if v not in self.history:
             # The oldest entry is flushed automatically.
             self.history.append(v)
@@ -263,12 +263,13 @@ class kHistory_FIFO(kHistory):
 class kHistory_LRU(kHistory):
     """k-History Random Walk with LRU replacement (kHistoryRW-LRU) agent."""
     def move_to(self, v):
-        super().move_to(v)
+        # FIXME: Avoid hard-coding.
+        super(BiasedRW, self).move_to(v)
         # Always place the recent entry at the top.
         if v in self.history:
             self.history.remove(v)
         self.history.append(v)
-
+# ----------------------------------------------------------------
 class EigenvecRW(BiasedRW):
     """Eigenvector Random Walk (EigenvecRW) agent."""
     def __init__(self, *kargs, **kwargs):
@@ -302,8 +303,9 @@ class EccentricityRW(EigenvecRW):
     def centrality(self, v):
         return self.graph.eccentricity(v)
 
+# ----------------------------------------------------------------
 class MERW(SRW):
-    """Maximal-Entropy Random Walk (MERW) agentg."""
+    """Maximal-Entropy Random Walk (MERW) agent."""
     def __init__(self, *kargs, **kwargs):
         super().__init__(*kargs, **kwargs)
         adj = self.graph.adjacency_matrix()
