@@ -19,7 +19,7 @@ import tbdump
 MAX_STEPS = 10000
 GRAPH_TYPES = 'random ba barandom ring tree btree lattice voronoi db 3-regular 4-regular li_maini'.split(
 )
-AGENT_NAMES = 'SRW SARW HybridRW BloomRW kHistory VARW NBRW BiasedRW EigenvecRW ClosenessRW BetweennessRW EccentricityRW MERW'.split(
+AGENT_NAMES = 'SRW SARW HybridRW BloomRW kHistory_LRU kHistory_FIFO kHistory VARW NBRW BiasedRW EigenvecRW ClosenessRW BetweennessRW EccentricityRW MERW'.split(
 )
 
 def usage():
@@ -80,7 +80,7 @@ def create_graph(type_, n=100, k=3.):
     assert False
 
 def header_str():
-    return '# agent     \talpha\tN\tM\ttype\tcount\tC\t95%\tE[H]\t95%'
+    return '# agent     \talpha\tN\tM\ttype\tcount\tabort\tC\t95%\tE[H]\t95%'
 
 def status_str(agent, g, count, naborts, covers, hittings):
     name = agent.name()
