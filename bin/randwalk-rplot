@@ -36,7 +36,7 @@ def main():
     g = graph_tools.Graph(directed=False)
     g = g.create_graph(graph_type, n_nodes, int(n_nodes * kavg / 2))
 
-    agent_names = 'SRW SARW NBRW kSARW BloomRW'.split()
+    agent_names = 'SRW SARW NBRW BloomRW'.split()
     agents = [eval('randwalk.' + name)(graph=g, current=1) for name in agent_names]
     t = 0
     while True:
