@@ -17,17 +17,17 @@ import graph_tools
 import tbdump
 
 MAX_STEPS = 10000
-GRAPH_TYPES = 'random ba barandom ring tree btree lattice voronoi db 3-regular 4-regular li_maini'.split(
-)
-AGENT_NAMES = 'SRW SARW HybridRW BloomRW kHistory_LRU kHistory_FIFO kHistory VARW NBRW BiasedRW EigenvecRW ClosenessRW BetweennessRW EccentricityRW MERW'.split(
-)
+GRAPH_TYPES = 'random,ba,barandom,ring,tree,btree,lattice,voronoi,db,3-regular,4-regular,li_maini'
+AGENT_NAMES = 'SRW,SARW,HybridRW,BloomRW,kHistory_LRU,kHistory_FIFO,kHistory,VARW,NBRW,BiasedRW,EigenvecRW,ClosenessRW,BetweennessRW,EccentricityRW,LZRW,MaxDegreeRW,MERW'
 
 def usage():
     die(f"""\
 usage: {sys.argv[0]} [-N #] [-n #] [-k #]
-  -N    the number of simulation runs (default: 100)
-  -n    the desired number of vertices (default: 100)
-  -k    the desired average degree (default: 2.5)
+  -N                 the number of simulation runs (default: 100)
+  -n                 the desired number of vertices (default: 100)
+  -k                 the desired average degree (default: 2.5)
+  -a name[,name...]  list of agent names (default: {AGENT_NAMES})
+  -g name[,name...]  list of graph types (default: {GRAPH_TYPES})
 """)
 
 def conf95(vals):
@@ -126,15 +126,17 @@ def simulate(agent_name, g, start_vertex=1, alpha=0, ntrials=100):
     print(stat + ' ')
 
 def main():
-    opt = getopts('N:n:k:') or usage()
+    opt = getopts('N:n:k:a:g:') or usage()
     ntrials = int(opt.N) if opt.N else 100
     n_desired = int(opt.n) if opt.n else 100
     k_desired = float(opt.k) if opt.k else 2.5
+    agent_names = opt.a if opt.a else AGENT_NAMES
+    graph_types = opt.g if opt.g else GRAPH_TYPES
     start_vertex = 1
     print(header_str())
-    for type_ in GRAPH_TYPES:
+    for type_ in graph_types.split(','):
         g = create_graph(type_, n_desired, k_desired)
-        for agent in AGENT_NAMES:
+        for agent in agent_names.split(','):
             alphas = [0]
             if agent in 'NBRW BiasedRW EigenvecRW ClosenessRW BetweennessRW EccentricityRW':
                 alphas = [-.4, -.2, 0, .2, .4]
