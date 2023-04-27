@@ -194,7 +194,7 @@ class VARW(NBRW):
             return super().weight(u, v)
 
 # ----------------------------------------------------------------
-class LZRW(SRW):
+class LZRW(BiasedRW):
     """Lazy Random Walk (LZRW) agent."""
     def __init__(self, laziness=.5, *kargs, **kwargs):
         self.laziness = laziness
@@ -208,6 +208,20 @@ class LZRW(SRW):
             return u
         else:
             return super().pick_next(u)
+
+class MaxDegreeRW(LZRW):
+    """Max-Degree Random Walk (MaxDegreeRW) agent."""
+    def __init__(self, *kargs, **kwargs):
+        super().__init__(*kargs, **kwargs)
+        # FIXME: This code assumes that the graph is static.
+        self.max_degree = max([self.graph.degree(v) for v in self.graph.vertices()])
+    
+    def pick_next(self, u=None):
+        # Stay at the current vertex with the probability of 
+        # (max_degree - degree)/degree.
+        degree = self.graph.degree(self.current)
+        self.laziness = (self.max_degree - degree) / self.max_degree
+        return super().pick_next(u)
 
 class HybridRW(BloomRW):
     """Hybrid Random Walk (HybridRW) agent."""
