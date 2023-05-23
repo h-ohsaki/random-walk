@@ -337,3 +337,20 @@ class MERW(SRW):
         if u is None:
             u = self.current
         return (1 / self.eigval1) * (self.eigvec1[v - 1] / self.eigvec1[u - 1])
+
+class EmbedRW(SRW):
+    def __init__(self, *kargs, **kwargs):
+        super().__init__(*kargs, **kwargs)
+        # Precompute node embeddings of all vertices.
+        self.embed_cache = {}
+        for v in self.graph.vertices():
+            self.embed_cache[v] = self.graph.node2vec(v)
+        self.target = self.graph.random_vertex()
+        self.target_embed = self.embed_cache[self.target]
+
+    def weight(self, u, v):
+        if u is None:
+            u = self.current
+        e_u = self.embed_cache[u]
+        e_v = self.embed_cache[v]
+        return numpy.linalg.norm(e_u - e_v, ord=1)
