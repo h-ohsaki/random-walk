@@ -1,4 +1,4 @@
-#!/usr/bin/env pypy3
+#!/usr/bin/env python3
 #
 # Compare performance of different RW stragtegies.
 # Copyright (c) 2023, Hiroyuki Ohsaki.
@@ -18,7 +18,7 @@ import tbdump
 
 MAX_STEPS = 10000
 GRAPH_TYPES = 'random,ba,barandom,ring,tree,btree,lattice,voronoi,db,3-regular,4-regular,li_maini'
-AGENT_NAMES = 'SRW,SARW,HybridRW,BloomRW,kHistory_LRU,kHistory_FIFO,kHistory,VARW,NBRW,BiasedRW,EigenvecRW,ClosenessRW,BetweennessRW,EccentricityRW,LZRW,MaxDegreeRW,MERW'
+AGENT_NAMES = 'EmbedRW,SRW,SARW,HybridRW,BloomRW,kHistory_LRU,kHistory_FIFO,kHistory,VARW,NBRW,BiasedRW,EigenvecRW,ClosenessRW,BetweennessRW,EccentricityRW,LZRW,MaxDegreeRW,MERW'
 
 def usage():
     die(f"""\
