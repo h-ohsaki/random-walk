@@ -47,7 +47,7 @@ class BloomFilter:
 # ----------------------------------------------------------------
 class SRW:
     """Simple Random Walk (SRW) agent."""
-    def __init__(self, graph=None, current=None, *kargs, **kwargs):
+    def __init__(self, graph=None, current=None, target=None, *kargs, **kwargs):
         self.graph = graph
         self.path = []  # List of visited vertiecs.
         self.step = 0  # Global clock.
@@ -58,6 +58,7 @@ class SRW:
             int)  # Records the first visiting time.
         if current:
             self.move_to(current)
+        self.target = target
 
     def __repr__(self):
         return f'{self.name()}(step={self.step}, current={self.current}, ncovered={self.ncovered})'
@@ -339,19 +340,19 @@ class MERW(SRW):
         return (1 / self.eigval1) * (self.eigvec1[v - 1] / self.eigvec1[u - 1])
 
 class EmbedRW(SRW):
-    def __init__(self, beta=-1., *kargs, **kwargs):
+    def __init__(self, beta=-.5, *kargs, **kwargs):
         super().__init__(*kargs, **kwargs)
         self.beta = beta
         # Precompute node embeddings of all vertices.
         self.embed_cache = {}
         for v in self.graph.vertices():
             self.embed_cache[v] = self.graph.node2vec(v)
-        self.target = self.graph.random_vertex()
+        if self.target is None:
+            self.target = self.graph.random_vertex()
         self.target_embed = self.embed_cache[self.target]
 
     def weight(self, u, v):
         if u is None:
             u = self.current
-        e_u = self.embed_cache[u]
         e_v = self.embed_cache[v]
-        return numpy.linalg.norm(e_u - e_v, ord=1) ** self.beta
+        return (EPS + numpy.linalg.norm(self.target_embed - e_v, ord=1)) ** self.beta
