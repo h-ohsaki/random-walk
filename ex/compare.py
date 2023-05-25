@@ -132,7 +132,7 @@ def attack_agent(agent):
                 # Rewrire the link to the (possible) central vertex.
                 g.delete_edge(u, w)
                 g.add_edge(u, v)
-            return True
+                return True
     return False
 
 def simulate(agent_name,
