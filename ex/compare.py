@@ -80,9 +80,9 @@ def create_graph(type_, n=100, k=3.):
     assert False
 
 def header_str():
-    return '# agent     \talpha\tN\tM\ttype\tcount\tabort\tC\t95%\tE[H]\t95%'
+    return '# agent    \tN\tM\ttype\tcount\tabort\tC\t95%\tH\t95%\tE[H]\t95%'
 
-def status_str(agent, g, count, naborts, covers, hittings):
+def status_str(agent, g, count, naborts, covers, hittings, mean_hittings):
     name = agent.name()
     try:
         alpha = agent.alpha
@@ -95,27 +95,32 @@ def status_str(agent, g, count, naborts, covers, hittings):
     cover = agent.step
     covers.append(cover)
     # NOTE: hiting[v] records the hitting time at vertex V.
-    hitting = statistics.mean(agent.hitting.values())
+    hitting = agent.hitting[agent.target]
     hittings.append(hitting)
+    mean_hitting = statistics.mean(agent.hitting.values())
+    mean_hittings.append(mean_hitting)
     c_avg, c_conf = mean_and_conf95(covers)
     h_avg, h_conf = mean_and_conf95(hittings)
-    return f'{name:12}\t{alpha}\t{n}\t{m}\t{type_}\t{count}\t{naborts}\t{c_avg:.0f}\t{c_conf:.0f}\t{h_avg:.0f}\t{h_conf:.0f}'
+    mh_avg, mh_conf = mean_and_conf95(mean_hittings)
+    label = f"{name} {alpha or ''}"
+    return f'{label:12}\t{n}\t{m}\t{type_}\t{count}\t{naborts}\t{c_avg:.0f}\t{c_conf:.0f}\t{h_avg:.0f}\t{h_conf:.0f}\t{mh_avg:.0f}\t{mh_conf:.0f}'
 
 def simulate(agent_name, g, start_vertex=1, alpha=0, ntrials=100):
     covers = []
     hittings = []
+    mean_hittings = []
     naborts = 0
     for count in range(1, ntrials + 1):
         # Create an agent of a given agent name.
         cls = eval('randwalk.' + agent_name)
-        agent = cls(graph=g, current=start_vertex, alpha=alpha)
+        agent = cls(graph=g, current=start_vertex, target=g.nvertices(), alpha=alpha)
         # Perform an instance of simulation.
         while agent.ncovered < g.nvertices():
             agent.advance()
             if agent.step > MAX_STEPS:
                 naborts += 1
                 break
-        stat = status_str(agent, g, count, naborts, covers, hittings)
+        stat = status_str(agent, g, count, naborts, covers, hittings, mean_hittings)
         print(stat + '\r', file=sys.stderr, end='')
         # Abort the experiment if it takes too long.
         if naborts >= 10:
