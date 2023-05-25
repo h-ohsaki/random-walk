@@ -7,9 +7,11 @@
 # $Id: run.py,v 1.6 2023/03/20 08:44:56 ohsaki Exp ohsaki $
 #
 
-import sys
+import collections
 import math
+import random
 import statistics
+import sys
 
 from perlcompat import die, warn, getopts
 import randwalk
@@ -22,12 +24,14 @@ AGENT_NAMES = 'EmbedRW,SRW,SARW,HybridRW,BloomRW,kHistory_LRU,kHistory_FIFO,kHis
 
 def usage():
     die(f"""\
-usage: {sys.argv[0]} [-N #] [-n #] [-k #]
+usage: {sys.argv[0]} [-s #] [-N #] [-n #] [-k #] [-A #]
+  -s seed            specifiy the seed of random number generator
   -N                 the number of simulation runs (default: 100)
   -n                 the desired number of vertices (default: 100)
   -k                 the desired average degree (default: 2.5)
   -a name[,name...]  list of agent names (default: {AGENT_NAMES})
   -g name[,name...]  list of graph types (default: {GRAPH_TYPES})
+  -A step            perform adversary attack every STEP
 """)
 
 def conf95(vals):
@@ -105,7 +109,38 @@ def status_str(agent, g, count, naborts, covers, hittings, mean_hittings):
     label = f"{name} {alpha or ''}"
     return f'{label:12}\t{n}\t{m}\t{type_}\t{count}\t{naborts}\t{c_avg:.0f}\t{c_conf:.0f}\t{h_avg:.0f}\t{h_conf:.0f}\t{mh_avg:.0f}\t{mh_conf:.0f}'
 
-def simulate(agent_name, g, start_vertex=1, alpha=0, ntrials=100):
+def attack_agent(agent):
+    # Count the number of past visits.
+    counter = collections.Counter(agent.path)
+    g = agent.graph
+    u = agent.current
+    # Try to rewire to frequently-visisted vertex.
+    for v, count in counter.most_common():
+        # u: current vertex
+        # v: one of frequently-visisted vertices
+        if g.has_edge(u, v):
+            continue
+        # Try to find link (u, w) which can be safely deleted without isolating 
+        # the graph into multiple components.
+        neighbors = list(g.neighbors(u))
+        random.shuffle(neighbors)
+        for w in neighbors:
+            h = g.copy_graph()
+            h.delete_edge(u, w)
+            # The graph still remains connected after link deletion?
+            if h.is_connected():
+                # Rewrire the link to the (possible) central vertex.
+                g.delete_edge(u, w)
+                g.add_edge(u, v)
+            return True
+    return False
+
+def simulate(agent_name,
+             g,
+             start_vertex=1,
+             alpha=0,
+             ntrials=100,
+             attack_interval=None):
     covers = []
     hittings = []
     mean_hittings = []
@@ -113,14 +148,20 @@ def simulate(agent_name, g, start_vertex=1, alpha=0, ntrials=100):
     for count in range(1, ntrials + 1):
         # Create an agent of a given agent name.
         cls = eval('randwalk.' + agent_name)
-        agent = cls(graph=g, current=start_vertex, target=g.nvertices(), alpha=alpha)
+        agent = cls(graph=g,
+                    current=start_vertex,
+                    target=g.nvertices(),
+                    alpha=alpha)
         # Perform an instance of simulation.
         while agent.ncovered < g.nvertices():
             agent.advance()
             if agent.step > MAX_STEPS:
                 naborts += 1
                 break
-        stat = status_str(agent, g, count, naborts, covers, hittings, mean_hittings)
+            if attack_interval is not None and agent.step % attack_interval == 0:
+                attack_agent(agent)
+        stat = status_str(agent, g, count, naborts, covers, hittings,
+                          mean_hittings)
         print(stat + '\r', file=sys.stderr, end='')
         # Abort the experiment if it takes too long.
         if naborts >= 10:
@@ -131,12 +172,15 @@ def simulate(agent_name, g, start_vertex=1, alpha=0, ntrials=100):
     print(stat + ' ')
 
 def main():
-    opt = getopts('N:n:k:a:g:') or usage()
+    opt = getopts('s:N:n:k:a:g:A:') or usage()
+    seed = int(opt.s) if opt.s else None
+    random.seed(seed)
     ntrials = int(opt.N) if opt.N else 100
     n_desired = int(opt.n) if opt.n else 100
     k_desired = float(opt.k) if opt.k else 2.5
     agent_names = opt.a if opt.a else AGENT_NAMES
     graph_types = opt.g if opt.g else GRAPH_TYPES
+    attack_interval = int(opt.A) if opt.A else None
     start_vertex = 1
     print(header_str())
     for type_ in graph_types.split(','):
@@ -146,7 +190,8 @@ def main():
             if agent in 'NBRW BiasedRW EigenvecRW ClosenessRW BetweennessRW EccentricityRW':
                 alphas = [-.4, -.2, 0, .2, .4]
             for alpha in alphas:
-                simulate(agent, g, start_vertex, alpha, ntrials)
+                simulate(agent, g, start_vertex, alpha, ntrials,
+                         attack_interval)
 
 if __name__ == "__main__":
     main()
