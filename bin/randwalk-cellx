@@ -63,10 +63,8 @@ priority agent 10
 
 {g_cell}
 kill /^t/
-# color /^v/ heat10
-# alpha /^v/ .8
-# color /^e/ heat10
-# alpha /^e/ .6
+color /^v/ heat10
+alpha /^v/ .5
 """)
 
     # Create an agent of a given agent class.
@@ -79,10 +77,11 @@ kill /^t/
         # agent.dump()
         v = agent.current
         print(f'animate agent v{v}')
+        print('display')
         nvisit = agent.nvisits[v]
         level = min(30 + 10 * nvisit, 100)
         print(f'color v{v} heat{level}')
-        print(f'alpha v{v} .6')
+        print(f'alpha v{v} .5')
         print('display')
 
 if __name__ == "__main__":
