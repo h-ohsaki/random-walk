@@ -53,19 +53,28 @@ def main():
     g = graph_tools.Graph(directed=False)
     g = g.create_graph(graph_type, n_nodes, int(n_nodes * kavg / 2))
     # g = g.create_graph(graph_type, n_nodes)
-    g_cell = g.export_cell()
-    g_cell = g_cell.replace('wait\n', '')
 
-    print(f"""\
-palette c_agent 1 .9 0 1
-define agent ellipse 10 10 c_agent
-priority agent 10
-
-{g_cell}
-kill /^t/
-color /^v/ heat10
-alpha /^v/ .5
+    print("""\
+palette acolor 1 .9 0 1
+define agent box 15 15 acolor
+priority agent 1
 """)
+
+    out = ''
+    max_degree = max([g.degree(v) for v in g.vertices()])
+    for v in sorted(g.vertices()):
+        # NOTE: Vertices with the maximum degree are drawn with 10% height/width.
+        r = max(.005, .02 * g.degree(v) / max_degree)
+        out += f'define v{v} ellipse {r} {r} heat15\n'
+        out += f'alpha v{v} .5\n'
+    n = 1
+    for u, v in sorted(g.edges()):
+        out += f'define e{u}_{v} link v{u} v{v} 3 heat10\n'
+        out += f'alpha e{u}_{v} .5\n'
+        n += 1
+    out += 'spring /^v/\n'
+    out += 'display\n'
+    print(out)
 
     # Create an agent of a given agent class.
     cls = eval('randwalk.' + agent_cls)
@@ -73,15 +82,21 @@ alpha /^v/ .5
 
     # Perform an instance of simulation.
     while agent.ncovered < n_nodes:
+        u = agent.current
         agent.advance()
         # agent.dump()
         v = agent.current
         print(f'animate agent v{v}')
         print('display')
+
         nvisit = agent.nvisits[v]
-        level = min(30 + 10 * nvisit, 100)
+        level = min(20 + 5 * nvisit, 100)
         print(f'color v{v} heat{level}')
         print(f'alpha v{v} .5')
+        if u > v:
+            u, v = v, u 
+        print(f'color e{u}_{v} heat{level}')
+        print(f'alpha e{u}_{v} .5')
         print('display')
 
 if __name__ == "__main__":
