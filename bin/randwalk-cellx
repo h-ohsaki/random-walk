@@ -64,13 +64,13 @@ priority agent 1
     max_degree = max([g.degree(v) for v in g.vertices()])
     for v in sorted(g.vertices()):
         # NOTE: Vertices with the maximum degree are drawn with 10% height/width.
-        r = max(.005, .02 * g.degree(v) / max_degree)
+        r = max(.005, .015 * g.degree(v) / max_degree)
         out += f'define v{v} ellipse {r} {r} heat15\n'
-        out += f'alpha v{v} .5\n'
+        out += f'alpha v{v} .8\n'
     n = 1
     for u, v in sorted(g.edges()):
-        out += f'define e{u}_{v} link v{u} v{v} 3 heat10\n'
-        out += f'alpha e{u}_{v} .5\n'
+        out += f'define e{u}_{v} link v{u} v{v} 2 heat10\n'
+        out += f'alpha e{u}_{v} .7\n'
         n += 1
     out += 'spring /^v/\n'
     out += 'display\n'
@@ -87,16 +87,16 @@ priority agent 1
         # agent.dump()
         v = agent.current
         print(f'animate agent v{v}')
-        print('display')
+        # print('display')
 
         nvisit = agent.nvisits[v]
-        level = min(20 + 5 * nvisit, 100)
+        level = min(20 + 10 * nvisit, 100)
         print(f'color v{v} heat{level}')
-        print(f'alpha v{v} .5')
+        print(f'alpha v{v} .8')
         if u > v:
             u, v = v, u 
         print(f'color e{u}_{v} heat{level}')
-        print(f'alpha e{u}_{v} .5')
+        print(f'alpha e{u}_{v} .8')
         print('display')
 
 if __name__ == "__main__":
