@@ -22,6 +22,7 @@ class BloomFilter:
     def __init__(self, size):
         if size is None:
             size = 1000
+            size = 32 * 3
         self.size = size  # Size of the Bloom filter in bits.
         self.bitarray = [0] * self.size
 
@@ -56,6 +57,7 @@ class SRW:
         self.ncovered = 0  # The number of uniquely visisted vertices.
         self.hitting = collections.defaultdict(
             int)  # Records the first visiting time.
+        self.current = None
         if current:
             self.move_to(current)
         self.target = target
@@ -169,6 +171,8 @@ class BloomRW(BiasedRW):
         if u is None:
             u = self.current
         if self.bf.query(v):
+            if v not in self.path:
+                warn(f'** false positive {v}')
             return EPS
         else:
             return super().weight(u, v)
@@ -261,29 +265,30 @@ class kHistory(BiasedRW):
             return super().weight(u, v)
 
     def move_to(self, v):
-        super().move_to(v)
         # Always place the recent entry at the top.
         # NOTE: The history might have duplicates.
-        self.history.append(v)
+        self.history.append(self.current)
+        super().move_to(v)
 
 class kHistory_FIFO(kHistory):
     """k-History Random Walk with FIFO replacement (kHistoryRW-FIFO) agent."""
     def move_to(self, v):
+        if self.current not in self.history:
+            # The oldest entry is flushed automatically.
+            self.history.append(self.current)
         # FIXME: Avoid hard-coding.
         super(BiasedRW, self).move_to(v)
-        if v not in self.history:
-            # The oldest entry is flushed automatically.
-            self.history.append(v)
 
 class kHistory_LRU(kHistory):
     """k-History Random Walk with LRU replacement (kHistoryRW-LRU) agent."""
     def move_to(self, v):
+        # Always place the recent entry at the top.
+        if self.current in self.history:
+            self.history.remove(self.current)
+        self.history.append(self.current)
         # FIXME: Avoid hard-coding.
         super(BiasedRW, self).move_to(v)
-        # Always place the recent entry at the top.
-        if v in self.history:
-            self.history.remove(v)
-        self.history.append(v)
+
 # ----------------------------------------------------------------
 class EigenvecRW(BiasedRW):
     """Eigenvector Random Walk (EigenvecRW) agent."""
