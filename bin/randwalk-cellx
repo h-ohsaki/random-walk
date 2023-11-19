@@ -38,11 +38,42 @@ usage: {sys.argv[0]} [-s #] [-n #] [-k #]
   -A #      bias parameter alpha (default: 0)
 """)
 
+def dump_graph(g):
+    print("""\
+palette acolor 1 .9 0 1
+define agent box 15 15 acolor
+priority agent 1
+""")
+    out = ''
+    max_degree = max([g.degree(v) for v in g.vertices()])
+    for v in sorted(g.vertices()):
+        r = .005 + .005 / max_degree * (g.degree(v) - 1)
+        out += f'define v{v} ellipse {r} {r} heat15\n'
+    n = 1
+    for u, v in sorted(g.edges()):
+        out += f'define e{u}_{v} link v{u} v{v} 2 heat10\n'
+        n += 1
+    out += 'alpha /^v/ .8\n'
+    out += 'spring /^v/\n'
+    out += 'display\n'
+    print(out)
+
+def dump_agent(last_v, agent):
+    v = agent.current
+    print(f'animate agent v{v}')
+    nvisit = agent.nvisits[v]
+    level = min(20 + 10 * nvisit, 100)
+    print(f'color v{v} heat{level}')
+    if last_v > v:
+        last_v, v = v, last_v 
+    print(f'color e{last_v}_{v} heat{level}')
+    print('display')
+
 def main():
     opt = getopts('s:n:k:t:a:A:') or usage()
     seed = int(opt.s) if opt.s else 1
     n_nodes = int(opt.n) if opt.n else 100
-    kavg = float(opt.k) if opt.k else 3.
+    kavg = float(opt.k) if opt.k else 2.5
     graph_type = opt.t if opt.t else 'random'
     agent_cls = opt.a if opt.a else 'BiasedRW'
     alpha = float(opt.A) if opt.A else 0.
@@ -53,28 +84,7 @@ def main():
     g = graph_tools.Graph(directed=False)
     g = g.create_graph(graph_type, n_nodes, int(n_nodes * kavg / 2))
     # g = g.create_graph(graph_type, n_nodes)
-
-    print("""\
-palette acolor 1 .9 0 1
-define agent box 15 15 acolor
-priority agent 1
-""")
-
-    out = ''
-    max_degree = max([g.degree(v) for v in g.vertices()])
-    for v in sorted(g.vertices()):
-        # NOTE: Vertices with the maximum degree are drawn with 10% height/width.
-        r = max(.005, .015 * g.degree(v) / max_degree)
-        out += f'define v{v} ellipse {r} {r} heat15\n'
-        out += f'alpha v{v} .8\n'
-    n = 1
-    for u, v in sorted(g.edges()):
-        out += f'define e{u}_{v} link v{u} v{v} 2 heat10\n'
-        out += f'alpha e{u}_{v} .7\n'
-        n += 1
-    out += 'spring /^v/\n'
-    out += 'display\n'
-    print(out)
+    dump_graph(g)
 
     # Create an agent of a given agent class.
     cls = eval('randwalk.' + agent_cls)
@@ -82,22 +92,10 @@ priority agent 1
 
     # Perform an instance of simulation.
     while agent.ncovered < n_nodes:
-        u = agent.current
+        last_v = agent.current
         agent.advance()
         # agent.dump()
-        v = agent.current
-        print(f'animate agent v{v}')
-        # print('display')
-
-        nvisit = agent.nvisits[v]
-        level = min(20 + 10 * nvisit, 100)
-        print(f'color v{v} heat{level}')
-        print(f'alpha v{v} .8')
-        if u > v:
-            u, v = v, u 
-        print(f'color e{u}_{v} heat{level}')
-        print(f'alpha e{u}_{v} .8')
-        print('display')
+        dump_agent(last_v, agent)
 
 if __name__ == "__main__":
     main()
