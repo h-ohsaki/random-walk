@@ -20,10 +20,8 @@
 
 import random
 import sys
-import os
 
 from perlcompat import die, warn, getopts
-import graph_tools
 import randwalk
 import tbdump
 
@@ -33,14 +31,16 @@ usage: {sys.argv[0]} [-s #] [-n #] [-k #]
   -s #      seed of random number generator
   -n #      the number of vertices (default: 100)
   -k #      average degree (default: 3)
-  -t type   type of graph (random/barandom)
-  -a agent  name of agent class (SRW/NBRW)
+  -t type   type of graph ({randwalk.GRAPH_TYPES})
+  -a agent  type of agent ({randwalk.AGENT_TYPES})
   -A #      bias parameter alpha (default: 0)
 """)
 
 def dump_graph(g):
     print("""\
-palette acolor 1 .9 0 1
+palette vcolor heat15
+palette ecolor heat15 .8
+palette acolor heat80
 define agent box 15 15 acolor
 priority agent 1
 """)
@@ -48,12 +48,11 @@ priority agent 1
     max_degree = max([g.degree(v) for v in g.vertices()])
     for v in sorted(g.vertices()):
         r = .005 + .005 / max_degree * (g.degree(v) - 1)
-        out += f'define v{v} ellipse {r} {r} heat15\n'
+        out += f'define v{v} ellipse {r} {r} vcolor\n'
     n = 1
     for u, v in sorted(g.edges()):
-        out += f'define e{u}_{v} link v{u} v{v} 2 heat10\n'
+        out += f'define e{u}_{v} link v{u} v{v} 2 ecolor\n'
         n += 1
-    out += 'alpha /^v/ .8\n'
     out += 'spring /^v/\n'
     out += 'display\n'
     print(out)
@@ -65,8 +64,8 @@ def dump_agent(last_v, agent):
     level = min(20 + 10 * nvisit, 100)
     print(f'color v{v} heat{level}')
     if last_v > v:
-        last_v, v = v, last_v 
-    print(f'color e{last_v}_{v} heat{level}')
+        last_v, v = v, last_v
+    print(f'color e{last_v}_{v} heat{level} .8')
     print('display')
 
 def main():
@@ -75,21 +74,13 @@ def main():
     n_nodes = int(opt.n) if opt.n else 100
     kavg = float(opt.k) if opt.k else 2.5
     graph_type = opt.t if opt.t else 'random'
-    agent_cls = opt.a if opt.a else 'BiasedRW'
+    agent_type = opt.a if opt.a else 'BiasedRW'
     alpha = float(opt.A) if opt.A else 0.
 
     random.seed(seed)
-
-    # Create graph.
-    g = graph_tools.Graph(directed=False)
-    g = g.create_graph(graph_type, n_nodes, int(n_nodes * kavg / 2))
-    # g = g.create_graph(graph_type, n_nodes)
+    g = randwalk.create_graph(graph_type, n_nodes, kavg)
     dump_graph(g)
-
-    # Create an agent of a given agent class.
-    cls = eval('randwalk.' + agent_cls)
-    agent = cls(graph=g, current=1, alpha=alpha)
-
+    agent = randwalk.create_agent(agent_type, graph=g, current=1, alpha=alpha)
     # Perform an instance of simulation.
     while agent.ncovered < n_nodes:
         last_v = agent.current
