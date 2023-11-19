@@ -8,11 +8,70 @@
 import collections
 import math
 import random
+import statistics
 
 from perlcompat import die, warn, getopts
+import graph_tools
 import numpy
 
 EPS = 1e-4
+GRAPH_TYPES = 'random,ba,barandm,ring,tree,btree,lattice,voronoi,db,3-regular,4-regular,limaini'
+AGENT_TYPES = 'EmbedRW,SRW,SARW,HybridRW,BloomRW,kHistory_LRU,kHistory_FIFO,kHistory,VARW,NBRW,BiasedRW,EigenvecRW,ClosenessRW,BetweennessRW,EccentricityRW,LZRW,MaxDegreeRW,MERW'
+
+# ----------------------------------------------------------------
+def conf95(vals):
+    """Return 95% confidence interval for measurements VALS."""
+    zval = 1.960
+    if len(vals) <= 1:
+        return 0
+    return zval * statistics.stdev(vals) / math.sqrt(len(vals))
+
+def mean_and_conf95(vals):
+    """Return the mean and the 95% confience interval for measurements
+    VALS."""
+    return statistics.mean(vals), conf95(vals)
+
+def create_graph(type_, n=100, k=3.):
+    """Randomly generate a graph instance using network generation model TYPE_.
+    If possible, a graph with N vertices and the average degree of K is
+    generated."""
+    m = int(n * k / 2)
+    g = graph_tools.Graph(directed=False)
+    g.set_graph_attribute('name', type_)
+    if type_ == 'random':
+        return g.create_random_graph(n, m)
+    if type_ == 'ba':
+        return g.create_graph('ba', n, 10, int(k))
+    if type_ == 'barandm':
+        return g.create_graph('barandom', n, m)
+    if type_ == 'ring':
+        return g.create_graph('ring', n)
+    if type_ == 'tree':
+        return g.create_graph('tree', n)
+    if type_ == 'btree':
+        return g.create_graph('btree', n)
+    if type_ == 'lattice':
+        return g.create_graph('lattice', 2, int(math.sqrt(n)))
+    if type_ == 'voronoi':
+        return g.create_graph('voronoi', n // 2)
+    if type_ == 'db':
+        # NOTE: average degree must be divisable by 2.
+        return g.create_graph('db', n, n * 2)
+    if type_ == '3-regular':
+        return g.create_random_regular_graph(n, 3)
+    if type_ == '4-regular':
+        return g.create_random_regular_graph(n, 4)
+    if type_ == 'limaini':
+        # NOTE: 5 clusters, 5% of vertices in each cluster, other vertices are
+        # added with preferential attachment.
+        return g.create_graph('li_maini', int(n * .75), 5, int(n * .25 / 5))
+    # FIXMME: Support treeba, general_ba, and latent.
+    assert False
+
+def create_agent(type_, *args, **kwargs):
+    # Create an agent of a given agent class.
+    cls = eval(type_)
+    return cls(*args, **kwargs)
 
 # ----------------------------------------------------------------
 # NOTE: The follwing code is essentially based on
