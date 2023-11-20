@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+#
+# Run a simulation of random walk on graph under specified conditions.
+# Copyright (c) 2023, Hiroyuki Ohsaki.
+# All rights reserved.
+#
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import random
+import sys
+
+from perlcompat import die, warn, getopts
+import randwalk
+import tbdump
+
+def usage():
+    die(f"""\
+usage: {sys.argv[0]} [-s #] [-n #] [-k #]
+  -s #      seed of random number generator
+  -n #      the number of vertices (default: 100)
+  -k #      average degree (default: 3)
+  -t type   type of graph ({randwalk.GRAPH_TYPES})
+  -a agent  type of agent ({randwalk.AGENT_TYPES})
+  -A #      bias parameter alpha (default: 0)
+""")
+
+def dump_graph(g):
+    print("""\
+palette vcolor heat15
+palette ecolor heat15 .8
+palette acolor heat80
+define agent box 15 15 acolor
+priority agent 1
+""")
+    out = ''
+    max_degree = max([g.degree(v) for v in g.vertices()])
+    for v in sorted(g.vertices()):
+        r = .005 + .005 / max_degree * (g.degree(v) - 1)
+        out += f'define v{v} ellipse {r} {r} vcolor\n'
+    n = 1
+    for u, v in sorted(g.edges()):
+        out += f'define e{u}_{v} link v{u} v{v} 2 ecolor\n'
+        n += 1
+    out += 'spring /^v/\n'
+    out += 'display\n'
+    print(out)
+
+def dump_agent(last_v, agent):
+    v = agent.current
+    print(f'move agent v{last_v}')
+    print(f'animate agent v{v}')
+    nvisit = agent.nvisits[v]
+    level = min(20 + 10 * nvisit, 100)
+    print(f'color v{v} heat{level}')
+    if last_v > v:
+        last_v, v = v, last_v
+    print(f'color e{last_v}_{v} heat{level} .8')
+
+    # Dump the content of Bloom filter.
+    width = 7
+    for i, bit in enumerate(agent.bf.bitarray):
+        x = 20 + i * width
+        color = 'heat80' if bit else 'heat15'
+        print(f"define bit{i} box {width - 1} 16 {color} {x} 20")
+
+    print('display')
+
+def main():
+    opt = getopts('s:n:k:t:a:A:') or usage()
+    seed = int(opt.s) if opt.s else 1
+    n_nodes = int(opt.n) if opt.n else 100
+    kavg = float(opt.k) if opt.k else 2.5
+    graph_type = opt.t if opt.t else 'random'
+    agent_type = opt.a if opt.a else 'BloomRW'
+    alpha = float(opt.A) if opt.A else 0.
+
+    random.seed(seed)
+    g = randwalk.create_graph(graph_type, n_nodes, kavg)
+    dump_graph(g)
+    agent = randwalk.create_agent(agent_type, graph=g, current=1, alpha=alpha)
+    # Perform an instance of simulation.
+    while agent.ncovered < n_nodes:
+        last_v = agent.current
+        agent.advance()
+        # agent.dump()
+        dump_agent(last_v, agent)
+
+if __name__ == "__main__":
+    main()
