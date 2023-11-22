@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+#
+# Run a simulation of random walk on graph under specified conditions.
+# Copyright (c) 2023, Hiroyuki Ohsaki.
+# All rights reserved.
+#
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import collections
+import random
+import sys
+
+from perlcompat import die, warn, getopts
+import randwalk
+import tbdump
+
+def usage():
+    die(f"""\
+usage: {sys.argv[0]} [-s #] [-n #] [-k #]
+  -s #      seed of random number generator
+  -n #      the number of vertices (default: 100)
+  -k #      average degree (default: 3)
+  -t type   type of graph ({randwalk.GRAPH_TYPES})
+  -a agent  type of agent ({randwalk.AGENT_TYPES})
+  -A #      bias parameter alpha (default: 0)
+""")
+
+def dump_graph(g):
+    print("""\
+palette vcolor heat15
+palette ecolor heat15 .8
+palette acolor heat80
+define agent box 15 15 acolor
+priority agent 1
+""")
+    out = ''
+    max_degree = max([g.degree(v) for v in g.vertices()])
+    for v in sorted(g.vertices()):
+        r = .005 + .005 / max_degree * (g.degree(v) - 1)
+        out += f'define v{v} ellipse {r} {r} vcolor\n'
+    n = 1
+    for u, v in sorted(g.edges()):
+        out += f'define e{u}_{v} link v{u} v{v} 2 ecolor\n'
+        n += 1
+    out += 'spring /^v/\n'
+    out += 'display\n'
+    print(out)
+
+def dump_agent(last_v, agent):
+    v = agent.current
+    print(f'animate agent v{v}')
+    nvisit = agent.nvisits[v]
+    level = min(20 + 10 * nvisit, 100)
+    print(f'color v{v} heat{level}')
+    # print(f'color {_link(v, last_v)} heat{level} .8')
+    print('display')
+
+def _link(u, v):
+    if u > v:
+        u, v = v, u
+    return f'e{u}_{v}'
+
+def attack_agent(agent):
+    # Count the number of past visits.
+    counter = collections.Counter(agent.path)
+    g = agent.graph
+    u = agent.current
+    # Try to rewire to frequently-visisted vertex.
+    for v, count in counter.most_common():
+        # u: current vertex
+        # v: one of frequently-visisted vertices
+        if g.has_edge(u, v):
+            continue
+        # Try to find link (u, w) which can be safely deleted without isolating
+        # the graph into multiple components.
+        neighbors = list(g.neighbors(u))
+        random.shuffle(neighbors)
+        for w in neighbors:
+            h = g.copy_graph()
+            h.delete_edge(u, w)
+            h.add_edge(u, v)
+            # The graph still remains connected after link deletion?
+            if h.is_connected():
+                # Rewrire the link to the (possible) central vertex.
+                g.delete_edge(u, w)
+                print(f'kill {_link(u, w)}')
+                g.add_edge(u, v)
+                print(f'define {_link(u, v)} link v{u} v{v} 2 heat90')
+                return True
+    return False
+
+def main():
+    opt = getopts('s:n:k:t:a:A:') or usage()
+    seed = int(opt.s) if opt.s else 1
+    n_nodes = int(opt.n) if opt.n else 100
+    kavg = float(opt.k) if opt.k else 2.5
+    graph_type = opt.t if opt.t else 'random'
+    agent_type = opt.a if opt.a else 'BiasedRW'
+    alpha = float(opt.A) if opt.A else 0.
+
+    random.seed(seed)
+    g = randwalk.create_graph(graph_type, n_nodes, kavg)
+    dump_graph(g)
+    agent = randwalk.create_agent(agent_type, graph=g, current=1, alpha=alpha)
+    # Perform an instance of simulation.
+    while agent.ncovered < n_nodes:
+        last_v = agent.current
+        agent.advance()
+        # agent.dump()
+        dump_agent(last_v, agent)
+        if random.random() <= .2:
+            attack_agent(agent)
+
+if __name__ == "__main__":
+    main()
