@@ -66,7 +66,7 @@ def create_graph(type_, n=100, k=3.):
         # added with preferential attachment.
         return g.create_graph('li_maini', int(n * .75), 5, int(n * .25 / 5))
     # FIXMME: Support treeba, general_ba, and latent.
-    assert False
+    die(f"Invalid graph type `{type_}'.\nSupported graph types: {GRAPH_TYPES}.")
 
 def create_agent(type_, *args, **kwargs):
     # Create an agent of a given agent class.
