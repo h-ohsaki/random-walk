@@ -20,7 +20,7 @@ setuptools.setup(
     url='https://github.com/h-ohsaki/randwalk.git',
     packages=setuptools.find_packages(),
     install_requires=['perlcompat', 'tbdump', 'graph-tools'],
-    scripts=['bin/randwalk'],
+    scripts=['bin/randwalk', 'bin/randwalk-compare'],
     classifiers=[
         'Programming Language :: Python :: 3',
         'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
