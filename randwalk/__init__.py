@@ -66,7 +66,8 @@ def create_graph(type_, n=100, k=3.):
         # added with preferential attachment.
         return g.create_graph('li_maini', int(n * .75), 5, int(n * .25 / 5))
     # FIXMME: Support treeba, general_ba, and latent.
-    die(f"Invalid graph type `{type_}'.\nSupported graph types: {GRAPH_TYPES}.")
+    die(f"Invalid graph type `{type_}'.\nSupported graph types: {GRAPH_TYPES}."
+        )
 
 def create_agent(type_, *args, **kwargs):
     # Create an agent of a given agent class.
@@ -107,7 +108,12 @@ class BloomFilter:
 # ----------------------------------------------------------------
 class SRW:
     """Simple Random Walk (SRW) agent."""
-    def __init__(self, graph=None, current=None, target=None, *kargs, **kwargs):
+    def __init__(self,
+                 graph=None,
+                 current=None,
+                 target=None,
+                 *kargs,
+                 **kwargs):
         self.graph = graph
         self.path = []  # List of visited vertiecs.
         self.step = 0  # Global clock.
@@ -177,7 +183,8 @@ class SRW:
         v = self.current
         d = self.graph.degree(v)
         print(f'{self.step}\tvisit\t{v}\t{self.nvisits[v]}\t{d}')
-        print(f'{self.step}\tstatus\t{self.ncovered}\t{self.graph.nvertices()}')
+        print(
+            f'{self.step}\tstatus\t{self.ncovered}\t{self.graph.nvertices()}')
 
 # ----------------------------------------------------------------
 class BiasedRW(SRW):
@@ -278,10 +285,11 @@ class MaxDegreeRW(LZRW):
     def __init__(self, *kargs, **kwargs):
         super().__init__(*kargs, **kwargs)
         # FIXME: This code assumes that the graph is static.
-        self.max_degree = max([self.graph.degree(v) for v in self.graph.vertices()])
-    
+        self.max_degree = max(
+            [self.graph.degree(v) for v in self.graph.vertices()])
+
     def pick_next(self, u=None):
-        # Stay at the current vertex with the probability of 
+        # Stay at the current vertex with the probability of
         # (max_degree - degree)/degree.
         degree = self.graph.degree(self.current)
         self.laziness = (self.max_degree - degree) / self.max_degree
@@ -404,9 +412,10 @@ class MERW(SRW):
         return (1 / self.eigval1) * (self.eigvec1[v - 1] / self.eigvec1[u - 1])
 
 class EmbedRW(SRW):
-    def __init__(self, beta=-.5, *kargs, **kwargs):
+    def __init__(self, beta=-.5, gamma=.5, *kargs, **kwargs):
         super().__init__(*kargs, **kwargs)
         self.beta = beta
+        self.gamma = gamma
         # Precompute node embeddings of all vertices.
         self.embed_cache = {}
         for v in self.graph.vertices():
@@ -418,5 +427,10 @@ class EmbedRW(SRW):
     def weight(self, u, v):
         if u is None:
             u = self.current
+        w = super().weight(u, v)
+        e_u = self.embed_cache[u]
         e_v = self.embed_cache[v]
-        return (EPS + numpy.linalg.norm(self.target_embed - e_v, ord=1)) ** self.beta
+        alpha = 1.
+        norm1 = numpy.linalg.norm(self.target_embed - e_v, ord=1)
+        norm2 = numpy.linalg.norm(e_u - e_v, ord=1)
+        return EPS + w * (alpha * norm1**self.beta + (1 - alpha) * norm2**self.gamma)
