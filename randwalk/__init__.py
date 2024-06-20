@@ -5,6 +5,7 @@
 # All rights reserved.
 #
 
+from functools import lru_cache
 import collections
 import math
 import random
@@ -16,7 +17,7 @@ import numpy
 
 EPS = 1e-4
 GRAPH_TYPES = 'random,ba,barandm,ring,tree,btree,lattice,voronoi,db,3-regular,4-regular,limaini'
-AGENT_TYPES = 'EmbedRW,SRW,SARW,HybridRW,BloomRW,kHistory_LRU,kHistory_FIFO,kHistory,VARW,NBRW,BiasedRW,EigenvecRW,ClosenessRW,BetweennessRW,EccentricityRW,LZRW,MaxDegreeRW,MERW'
+AGENT_TYPES = 'EmbedRW,SRW,SARW,HybridRW,BloomRW,kHistory_LRU,kHistory_FIFO,kHistory,VARW,NBRW,BiasedRW,EigenvecRW,ClosenessRW,BetweennessRW,EccentricityRW,LZRW,MaxDegreeRW,MERW,OBRW'
 
 # ----------------------------------------------------------------
 def conf95(vals):
@@ -433,4 +434,34 @@ class EmbedRW(SRW):
         alpha = 1.
         norm1 = numpy.linalg.norm(self.target_embed - e_v, ord=1)
         norm2 = numpy.linalg.norm(e_u - e_v, ord=1)
-        return EPS + w * (alpha * norm1**self.beta + (1 - alpha) * norm2**self.gamma)
+        return EPS + w * (alpha * norm1**self.beta +
+                          (1 - alpha) * norm2**self.gamma)
+
+# ----------------------------------------------------------------
+OBRW_SELECTOR = [n / 10 for n in range(10 + 1)]
+
+class OBRW(SRW):
+    def selector(self):
+        return random.choice(OBRW_SELECTOR)
+        return OBRW_SELECTOR[self.step % len(OBRW_SELECTOR)]
+
+    @lru_cache
+    def neighbor_rank(self, u, v):
+        neighbors = self.graph.neighbors(u)
+        sorted_neighbors = sorted(neighbors)
+        return sorted_neighbors.index(v) / len(neighbors)
+
+    def weight(self, u, v):
+        return -abs(self.neighbor_rank(u, v) - self.selector())
+
+    def pick_next(self, u=None):
+        if u is None:
+            u = self.current
+        neighbors = self.graph.neighbors(u)
+        # Vertex U must not be isolated.
+        assert neighbors
+        # Save all weights for transistion from vertex U.
+        return random.choice(list(neighbors))
+        scores = [(self.weight(u, v), v) for v in neighbors]
+        sorted_scores = sorted(scores, reverse=True)
+        return sorted_scores[0][1]
