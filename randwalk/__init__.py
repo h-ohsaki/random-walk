@@ -438,21 +438,11 @@ class EmbedRW(SRW):
                           (1 - alpha) * norm2**self.gamma)
 
 # ----------------------------------------------------------------
-OBRW_SELECTOR = [n / 10 for n in range(10 + 1)]
+OBRW_SELECTOR = [0, 0, .99, .99, .5, .5, .25, .25, .75, .75]
 
 class OBRW(SRW):
     def selector(self):
-        return random.choice(OBRW_SELECTOR)
         return OBRW_SELECTOR[self.step % len(OBRW_SELECTOR)]
-
-    @lru_cache
-    def neighbor_rank(self, u, v):
-        neighbors = self.graph.neighbors(u)
-        sorted_neighbors = sorted(neighbors)
-        return sorted_neighbors.index(v) / len(neighbors)
-
-    def weight(self, u, v):
-        return -abs(self.neighbor_rank(u, v) - self.selector())
 
     def pick_next(self, u=None):
         if u is None:
@@ -460,8 +450,6 @@ class OBRW(SRW):
         neighbors = self.graph.neighbors(u)
         # Vertex U must not be isolated.
         assert neighbors
-        # Save all weights for transistion from vertex U.
-        return random.choice(list(neighbors))
-        scores = [(self.weight(u, v), v) for v in neighbors]
-        sorted_scores = sorted(scores, reverse=True)
-        return sorted_scores[0][1]
+        sorted_neighbors = sorted(neighbors)
+        index = int(self.selector() * len(neighbors))
+        return sorted_neighbors[index]
