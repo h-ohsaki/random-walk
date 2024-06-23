@@ -456,24 +456,24 @@ class LevyRW(BiasedRW):
         weights = {v: self.weight(u, v) for v in neighbors}
         return random_with_distrib(weights)
 
-class AnchorRW(LevyRW):
+class FlightRW(LevyRW):
     def __init__(self, *kargs, **kwargs):
         super().__init__(*kargs, **kwargs)
         self.anchors = self.pick_anchors()
+        self.nex_anchor = None
 
     def pick_anchors(self):
         anchors = {}
         for u in self.graph.vertices():
-            weights = {v: self.graph.shortest_path_length(u, v)**-self.alpha 
-                for v in self.graph.vertices() if v != u}
-            w = random_with_distrib(weights)
-            anchors[u] = w
+            anchors[u] = random.sample(list(self.graph.vertices()), 10)
         return anchors
 
     def pick_next(self, u=None):
         if u is None:
             u = self.current
-        neighbors = set(self.graph.neighbors(u)) | set([self.anchors[u]])
+        neighbors = set(self.graph.neighbors(u)) | set(self.anchors[u])
+        if u in neighbors:
+            neighbors.remove(u)
         # Save all weights for transistion from vertex U.
         weights = {v: self.weight(u, v) for v in neighbors}
         return random_with_distrib(weights)
