@@ -75,6 +75,16 @@ def create_agent(type_, *args, **kwargs):
     cls = eval(type_)
     return cls(*args, **kwargs)
 
+def random_with_distrib(distrib):
+    total = sum(distrib.values())
+    chosen = random.uniform(0, total)
+    cumul = 0
+    for key, weight in distrib.items():
+        if cumul <= chosen < cumul + weight:
+            return key
+        cumul += weight
+    return key
+
 # ----------------------------------------------------------------
 # NOTE: The follwing code is essentially based on
 # https://stackoverflow.com/questions/9026519/bloomfilter-python .
@@ -149,15 +159,7 @@ class SRW:
         assert neighbors
         # Save all weights for transistion from vertex U.
         weights = {v: self.weight(u, v) for v in neighbors}
-        total = sum(weights.values())
-        chosen = random.uniform(0, total)
-        accum = 0
-        for v in neighbors:
-            accum += weights[v]
-            if chosen < accum:
-                return v
-        assert False  # Must not reach here.
-        return None
+        return random_with_distrib(weights)
 
     def move_to(self, v):
         """Move the random walker to vertex V."""
@@ -436,3 +438,46 @@ class EmbedRW(SRW):
         norm2 = numpy.linalg.norm(e_u - e_v, ord=1)
         return EPS + w * (alpha * norm1**self.beta +
                           (1 - alpha) * norm2**self.gamma)
+
+class LevyRW(BiasedRW):
+    @lru_cache
+    def weight(self, u, v):
+        if u is None:
+            u = self.current
+        return self.graph.shortest_path_length(u, v)**-self.alpha
+
+    def pick_next(self, u=None):
+        """Randomly choose one of vetex with the probabiity
+        proportional to its weight."""
+        if u is None:
+            u = self.current
+        neighbors = [v for v in self.graph.vertices() if v != u]
+        # Save all weights for transistion from vertex U.
+        weights = {v: self.weight(u, v) for v in neighbors}
+        return random_with_distrib(weights)
+
+class AnchorRW(LevyRW):
+    def __init__(self, *kargs, **kwargs):
+        super().__init__(*kargs, **kwargs)
+        self.anchors = self.pick_anchors()
+        self.next_anchor = None
+
+    def pick_anchors(self):
+        n = self.graph.nvertices()
+        weights = {v: self.graph.degree(v)**0 for v in self.graph.vertices()}
+        anchors = []
+        while len(anchors) <= int(n * .5):
+            v = random_with_distrib(weights)
+            anchors.append(v)
+            del weights[v]
+        return anchors
+
+    def pick_next(self, u=None):
+        if u is None:
+            u = self.current
+        neighbors = set(self.graph.neighbors(u)) | set(self.anchors)
+        if u in neighbors:
+            neighbors.remove(u)
+        # Save all weights for transistion from vertex U.
+        weights = {v: self.weight(u, v) for v in neighbors}
+        return random_with_distrib(weights)
