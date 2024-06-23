@@ -436,20 +436,3 @@ class EmbedRW(SRW):
         norm2 = numpy.linalg.norm(e_u - e_v, ord=1)
         return EPS + w * (alpha * norm1**self.beta +
                           (1 - alpha) * norm2**self.gamma)
-
-# ----------------------------------------------------------------
-OBRW_SELECTOR = [0, 0, .99, .99, .5, .5, .25, .25, .75, .75]
-
-class OBRW(SRW):
-    def selector(self):
-        return OBRW_SELECTOR[self.step % len(OBRW_SELECTOR)]
-
-    def pick_next(self, u=None):
-        if u is None:
-            u = self.current
-        neighbors = self.graph.neighbors(u)
-        # Vertex U must not be isolated.
-        assert neighbors
-        sorted_neighbors = sorted(neighbors)
-        index = int(self.selector() * len(neighbors))
-        return sorted_neighbors[index]
