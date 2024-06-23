@@ -460,24 +460,20 @@ class AnchorRW(LevyRW):
     def __init__(self, *kargs, **kwargs):
         super().__init__(*kargs, **kwargs)
         self.anchors = self.pick_anchors()
-        self.next_anchor = None
 
     def pick_anchors(self):
-        n = self.graph.nvertices()
-        weights = {v: self.graph.degree(v)**0 for v in self.graph.vertices()}
-        anchors = []
-        while len(anchors) <= int(n * .5):
-            v = random_with_distrib(weights)
-            anchors.append(v)
-            del weights[v]
+        anchors = {}
+        for u in self.graph.vertices():
+            weights = {v: self.graph.shortest_path_length(u, v)**-self.alpha 
+                for v in self.graph.vertices() if v != u}
+            w = random_with_distrib(weights)
+            anchors[u] = w
         return anchors
 
     def pick_next(self, u=None):
         if u is None:
             u = self.current
-        neighbors = set(self.graph.neighbors(u)) | set(self.anchors)
-        if u in neighbors:
-            neighbors.remove(u)
+        neighbors = set(self.graph.neighbors(u)) | set([self.anchors[u]])
         # Save all weights for transistion from vertex U.
         weights = {v: self.weight(u, v) for v in neighbors}
         return random_with_distrib(weights)
