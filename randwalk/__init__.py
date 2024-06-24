@@ -415,29 +415,69 @@ class MERW(SRW):
         return (1 / self.eigval1) * (self.eigvec1[v - 1] / self.eigvec1[u - 1])
 
 class EmbedRW(SRW):
-    def __init__(self, beta=-.5, gamma=.5, *kargs, **kwargs):
+    def __init__(self, *kargs, **kwargs):
         super().__init__(*kargs, **kwargs)
-        self.beta = beta
-        self.gamma = gamma
-        # Precompute node embeddings of all vertices.
-        self.embed_cache = {}
-        for v in self.graph.vertices():
-            self.embed_cache[v] = self.graph.node2vec(v)
+        # Target node is mandatory.
         if self.target is None:
             self.target = self.graph.random_vertex()
-        self.target_embed = self.embed_cache[self.target]
+        self.target_embed = self.embed_vector(self.target)
 
+    @lru_cache
+    def embed_vector(self, v):
+        vec = self.graph.node2vec(v)
+        norm = numpy.linalg.norm(vec)
+        return vec / norm
+
+    @lru_cache
+    def _weight(self, u, v):
+        e_v = self.embed_vector(v)
+        # Only use the embedding vector of a neighbor node in seach mode.
+        norm1 = numpy.linalg.norm(self.target_embed - e_v, ord=1)
+        # NOTE: the transistion probability must be high for a small norm.
+        return norm1
+
+    @lru_cache
     def weight(self, u, v):
         if u is None:
             u = self.current
-        w = super().weight(u, v)
-        e_u = self.embed_cache[u]
-        e_v = self.embed_cache[v]
-        alpha = 1.
+        # Normalize the weight among all neighbor nodes.
+        weights = [self._weight(u, _) for _ in self.graph.neighbors(u)]
+        total = EPS + sum(weights)
+        w = 1 - self._weight(u, v) / total
+        # print(f'{u}->{v}\t{w}')
+        return w
+
+class SparseEmbedRW(EmbedRW):
+    def __init__(self, *kargs, **kwargs):
+        super().__init__(*kargs, **kwargs)
+        self.last_embed_vector = self.embed_vector(self.current)
+
+    @lru_cache
+    def embed_vector(self, v):
+        # Embedding vector is not available in half nodes except the target node.
+        if v != self.target and random.random() < .5:
+            return None
+        vec = self.graph.node2vec(v)
+        norm = numpy.linalg.norm(vec)
+        return vec / norm
+
+    @lru_cache
+    def _weight(self, u, v):
+        e_v = self.embed_vector(v)
+        # If the embedding vector is not available, use the last observed one.
+        if e_v is None:
+            e_v = self.last_embed_vector
+        if e_v is None:
+            return 1
         norm1 = numpy.linalg.norm(self.target_embed - e_v, ord=1)
-        norm2 = numpy.linalg.norm(e_u - e_v, ord=1)
-        return EPS + w * (alpha * norm1**self.beta +
-                          (1 - alpha) * norm2**self.gamma)
+        return norm1
+
+    def advance(self):
+        vec = self.embed_vector(self.current)
+        if vec is not None:
+            # Record the last observed embed vector.
+            self.last_embed_vector = vec
+        super().advance()
 
 class LevyRW(BiasedRW):
     @lru_cache
