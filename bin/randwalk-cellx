@@ -48,7 +48,10 @@ priority agent 1
     max_degree = max([g.degree(v) for v in g.vertices()])
     for v in sorted(g.vertices()):
         r = .005 + .005 / max_degree * (g.degree(v) - 1)
-        out += f'define v{v} ellipse {r} {r} vcolor\n'
+        if v != 100:
+            out += f'define v{v} ellipse {r} {r} vcolor\n'
+        else:
+            out += f'define v{v} ellipse {r} {r} red\n'
     n = 1
     for u, v in sorted(g.edges()):
         out += f'define e{u}_{v} link v{u} v{v} 2 ecolor\n'
