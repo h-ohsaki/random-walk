@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+#
+# Run a simulation of random walk on graph under specified conditions.
+# Copyright (c) 2023, Hiroyuki Ohsaki.
+# All rights reserved.
+#
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import random
+import sys
+
+from perlcompat import die, warn, getopts
+import randwalk
+import tbdump
+
+def usage():
+    die(f"""\
+usage: {sys.argv[0]} [-s #] [-n #] [-k #]
+  -s #      seed of random number generator
+  -n #      the number of vertices (default: 100)
+  -k #      average degree (default: 3)
+  -t type   type of graph ({randwalk.GRAPH_TYPES})
+  -a agent  type of agent ({randwalk.AGENT_TYPES})
+  -A #      bias parameter alpha (default: 0)
+""")
+
+def main():
+    opt = getopts('s:n:k:t:a:A:') or usage()
+    seed = int(opt.s) if opt.s else 1
+    n_nodes = int(opt.n) if opt.n else 100
+    kavg = float(opt.k) if opt.k else 2.5
+    graph_type = opt.t if opt.t else 'random'
+    agent_type = opt.a if opt.a else 'BiasedRW'
+    alpha = float(opt.A) if opt.A else 0.
+
+    random.seed(seed)
+    g = randwalk.create_graph(graph_type, n_nodes, kavg)
+    agent = randwalk.create_agent(agent_type, graph=g, current=1, target=n_nodes, alpha=alpha)
+    # Perform an instance of simulation.
+    while not agent.nvisits[agent.target]:
+        agent.advance()
+        nvisits = [str(agent.nvisits[v]) for v in range(1, n_nodes + 1)]
+        print(agent.step, '\t', ' '.join(nvisits))
+
+if __name__ == "__main__":
+    main()
