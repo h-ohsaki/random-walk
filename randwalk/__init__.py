@@ -456,24 +456,54 @@ class LevyRW(BiasedRW):
         weights = {v: self.weight(u, v) for v in neighbors}
         return random_with_distrib(weights)
 
-class FlightRW(LevyRW):
+class SprintRW(LevyRW):
     def __init__(self, *kargs, **kwargs):
         super().__init__(*kargs, **kwargs)
-        self.anchors = self.pick_anchors()
-        self.nex_anchor = None
+        self.distant_nodes = self.pick_distant_nodes()
+        self.next_distant_node = None
 
-    def pick_anchors(self):
-        anchors = {}
+    def pick_distant_nodes(self):
+        distant_nodes = {}
         for u in self.graph.vertices():
-            anchors[u] = random.sample(list(self.graph.vertices()), 10)
-        return anchors
+            # Randomly pick 3 non-local nodes.
+            non_neighbors = [
+                v for v in self.graph.vertices()
+                if not self.graph.has_edge(u, v) and u != v
+            ]
+            distant_nodes[u] = random.sample(non_neighbors, 3)
+        return distant_nodes
 
     def pick_next(self, u=None):
         if u is None:
             u = self.current
-        neighbors = set(self.graph.neighbors(u)) | set(self.anchors[u])
-        if u in neighbors:
-            neighbors.remove(u)
+        # Is moving toward the distant node?
+        if self.next_distant_node:
+            return self.next_hop_to(u, self.next_distant_node)
+
+        neighbors = self.graph.neighbors(u)
         # Save all weights for transistion from vertex U.
-        weights = {v: self.weight(u, v) for v in neighbors}
-        return random_with_distrib(weights)
+        # Pick the next destination from neighbors and distant nodes.
+        weights = {
+            v: self.weight(u, v)
+            for v in set(neighbors) | set(self.distant_nodes[u])
+        }
+        v = random_with_distrib(weights)
+        if v in neighbors:
+            # Normal random walk.
+            return v
+        else:
+            # Go to the chosen distant node following the shortest path.
+            self.next_distant_node = v
+            return self.next_hop_to(u, self.next_distant_node)
+
+    def advance(self):
+        super().advance()
+        # Arrived at the distant node?
+        if self.next_distant_node and self.current == self.next_distant_node:
+            self.next_distant_node = None
+
+    def next_hop_to(self, u, v):
+        paths = list(self.graph.shortest_paths(u, v))
+        path = random.choice(paths)
+        # Next hop of the shortest path from vertex U to vertex V.
+        return path[1]
