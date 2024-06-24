@@ -36,7 +36,7 @@ usage: {sys.argv[0]} [-s #] [-n #] [-k #]
   -A #      bias parameter alpha (default: 0)
 """)
 
-def dump_graph(g):
+def dump_graph(g, target):
     print("""\
 palette vcolor heat15
 palette ecolor heat15 .8
@@ -48,7 +48,7 @@ priority agent 1
     max_degree = max([g.degree(v) for v in g.vertices()])
     for v in sorted(g.vertices()):
         r = .005 + .005 / max_degree * (g.degree(v) - 1)
-        if v != 100:
+        if v != target:
             out += f'define v{v} ellipse {r} {r} vcolor\n'
         else:
             out += f'define v{v} ellipse {r} {r} red\n'
@@ -82,8 +82,8 @@ def main():
 
     random.seed(seed)
     g = randwalk.create_graph(graph_type, n_nodes, kavg)
-    dump_graph(g)
     agent = randwalk.create_agent(agent_type, graph=g, current=1, alpha=alpha)
+    dump_graph(g, agent.target)
     # Perform an instance of simulation.
     while agent.ncovered < n_nodes:
         last_v = agent.current
