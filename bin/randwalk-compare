@@ -97,7 +97,7 @@ def main():
     agent_type = opt.a if opt.a else 'BiasedRW,NBRW,SARW'
     alpha = float(opt.A) if opt.A else 0.
     start_vertex = 1
-    ntrials = 100
+    ntrials = 1000
 
     random.seed(seed)
     print(header_str())
