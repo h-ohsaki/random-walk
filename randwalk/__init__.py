@@ -32,7 +32,7 @@ def mean_and_conf95(vals):
     VALS."""
     return statistics.mean(vals), conf95(vals)
 
-def create_graph(type_, n=100, k=3.):
+def _create_graph(type_, n=100, k=3.):
     """Randomly generate a graph instance using network generation model TYPE_.
     If possible, a graph with N vertices and the average degree of K is
     generated."""
@@ -69,6 +69,13 @@ def create_graph(type_, n=100, k=3.):
     # FIXMME: Support treeba, general_ba, and latent.
     die(f"Invalid graph type `{type_}'.\nSupported graph types: {GRAPH_TYPES}."
         )
+
+def create_graph(type_, *kargs, **kwargs):
+    g = _create_graph(type_, *kargs, **kwargs)
+    # Anonymize vertex names.
+    h = g.anonymize_graph()
+    h.set_graph_attribute('name', type_)
+    return h
 
 def create_agent(type_, *args, **kwargs):
     # Create an agent of a given agent class.
@@ -448,18 +455,20 @@ class EmbedRW(SRW):
         return w
 
 class SparseEmbedRW(EmbedRW):
-    def __init__(self, *kargs, **kwargs):
+    def __init__(self, embed_ratio=.1, *kargs, **kwargs):
         super().__init__(*kargs, **kwargs)
+        self.embed_ratio = embed_ratio
         self.last_embed_vector = self.embed_vector(self.current)
 
     @lru_cache
     def embed_vector(self, v):
-        # Embedding vector is not available in half nodes except the target node.
-        if v != self.target and random.random() < .5:
+        # Embedding vector is available only in the target node and a fraction of nodes.
+        if v == self.target or random.random() <= self.embed_ratio:
+            vec = self.graph.node2vec(v)
+            norm = numpy.linalg.norm(vec)
+            return vec / norm
+        else:
             return None
-        vec = self.graph.node2vec(v)
-        norm = numpy.linalg.norm(vec)
-        return vec / norm
 
     @lru_cache
     def _weight(self, u, v):
